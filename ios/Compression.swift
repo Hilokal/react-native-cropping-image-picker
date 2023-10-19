@@ -3,27 +3,24 @@ import AVFoundation
 
 class Compression {
     var exportPresets: [String: String]
-
+    
     init() {
         var dic: [String: String] = [
             "640x480": AVAssetExportPreset640x480,
             "960x540": AVAssetExportPreset960x540,
             "1280x720": AVAssetExportPreset1280x720,
             "1920x1080": AVAssetExportPreset1920x1080,
+            "3840x2160": AVAssetExportPreset3840x2160,
             "LowQuality": AVAssetExportPresetLowQuality,
             "MediumQuality": AVAssetExportPresetMediumQuality,
             "HighestQuality": AVAssetExportPresetHighestQuality,
             "Passthrough": AVAssetExportPresetPassthrough
         ]
-        
-        if #available(iOS 9.0, *) {
-            dic["3840x2160"] = AVAssetExportPreset3840x2160
-        }
-        
         self.exportPresets = dic
     }
     
-    func compressImageDimensions(image: UIImage, maxWidth: CGFloat, maxHeight: CGFloat, into result: ImageResult) -> ImageResult {
+//    func compressImageDimensions(image: UIImage, maxWidth: CGFloat, maxHeight: CGFloat, into result: ImageResult) -> ImageResult {
+    func compressImageDimensions(image: UIImage, maxWidth: CGFloat, maxHeight: CGFloat, into result: ImageResult) {
         let oldWidth = image.size.width
         let oldHeight = image.size.height
         
@@ -48,9 +45,9 @@ class Compression {
         result.width = NSNumber(value: newWidth)
         result.height = NSNumber(value: newHeight)
         result.image = resizedImage
-        return result
+//        return result
     }
-
+    
     func compressImage(image: UIImage, with options: [String: Any]) -> ImageResult {
         let result = ImageResult()
         result.width = NSNumber(value: Float(image.size.width))
@@ -77,7 +74,7 @@ class Compression {
         
         return result
     }
-
+    
     func compressVideo(inputURL: URL, outputURL: URL, with options: [String: Any], handler: @escaping (AVAssetExportSession) -> Void) {
         let presetKey = options["compressVideoPreset"] as? String ?? "MediumQuality"
         
@@ -95,5 +92,5 @@ class Compression {
             }
         }
     }
-
+    
 }

@@ -6,8 +6,9 @@ extension UIImage {
         guard let cgImage = self.cgImage else {
             return nil
         }
+        var destinationSize = dstSize
         
-        var srcSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let srcSize = CGSize(width: cgImage.width, height: cgImage.height)
         
         if srcSize.equalTo(dstSize) {
             return self
@@ -28,27 +29,27 @@ extension UIImage {
             transform = CGAffineTransform(translationX: 0, y: srcSize.height)
             transform = transform.scaledBy(x: 1, y: -1)
         case .leftMirrored:
-            dstSize = CGSize(width: dstSize.height, height: dstSize.width)
+            destinationSize = CGSize(width: dstSize.height, height: dstSize.width)
             transform = CGAffineTransform(translationX: srcSize.height, y: srcSize.width)
             transform = transform.scaledBy(x: -1, y: 1)
             transform = transform.rotated(by: 3 * .pi / 2)
         case .left:
-            dstSize = CGSize(width: dstSize.height, height: dstSize.width)
+            destinationSize = CGSize(width: dstSize.height, height: dstSize.width)
             transform = CGAffineTransform(translationX: 0, y: srcSize.width)
             transform = transform.rotated(by: 3 * .pi / 2)
         case .rightMirrored:
-            dstSize = CGSize(width: dstSize.height, height: dstSize.width)
+            destinationSize = CGSize(width: dstSize.height, height: dstSize.width)
             transform = CGAffineTransform(scaleX: -1, y: 1)
             transform = transform.rotated(by: .pi / 2)
         case .right:
-            dstSize = CGSize(width: dstSize.height, height: dstSize.width)
+            destinationSize = CGSize(width: dstSize.height, height: dstSize.width)
             transform = CGAffineTransform(translationX: srcSize.height, y: 0)
             transform = transform.rotated(by: .pi / 2)
         @unknown default:
             fatalError("Invalid image orientation")
         }
         
-        UIGraphicsBeginImageContextWithOptions(dstSize, false, scale)
+        UIGraphicsBeginImageContextWithOptions(destinationSize, false, scale)
         guard let context = UIGraphicsGetCurrentContext() else {
             return nil
         }
@@ -76,7 +77,7 @@ extension UIImage {
             return nil
         }
         
-        var srcSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let srcSize = CGSize(width: cgImage.width, height: cgImage.height)
         
         var boundedSize = boundingSize
         switch imageOrientation {
