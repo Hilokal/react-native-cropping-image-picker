@@ -3,14 +3,14 @@ import AVFoundation
 import MobileCoreServices
 import Photos
 import CropViewController
-//import PhotosUI
+import PhotosUI
 import React
 
 class CroppingImagePickerImpl: NSObject,
-//                               PHPickerViewControllerDelegate,
-UIImagePickerControllerDelegate,
-UINavigationControllerDelegate,
-CropViewControllerDelegate {
+                               PHPickerViewControllerDelegate,
+                               UIImagePickerControllerDelegate,
+                               UINavigationControllerDelegate,
+                               CropViewControllerDelegate {
     
     static let shared = CroppingImagePickerImpl()
     
@@ -104,7 +104,7 @@ CropViewControllerDelegate {
         currentSelectionMode = .camera
         
 #if TARGET_IPHONE_SIMULATOR
-        rejecter(ERROR_PICKER_CANNOT_RUN_CAMERA_ON_SIMULATOR_KEY, ERROR_PICKER_CANNOT_RUN_CAMERA_ON_SIMULATOR_MSG, nil)
+        rejecter(CPIErrors.cannotRunCameraOnSimulatorKey, CPIErrors.cannotRunCameraOnSimulatorMsg, nil)
         return
 #else
         checkCameraPermissions { granted in
@@ -136,54 +136,9 @@ CropViewControllerDelegate {
 #endif
     }
     
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        print("ARRIVED_imagePickerController")
-        if let mediaType = info[.mediaType] as? String, mediaType == kUTTypeMovie as String {
-            if let url = info[.mediaURL] as? URL {
-                let asset = AVURLAsset(url: url)
-                let fileName = asset.url.lastPathComponent
-                handleVideo(asset: asset,
-                            withFileName: fileName,
-                            withLocalIdentifier: nil) { video in
-                    DispatchQueue.main.async {
-                        if let video = video {
-                            picker.dismiss(animated: true) {
-                                self.resolve?(video)
-                            }
-                        } else {
-                            picker.dismiss(animated: true) {
-                                self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
-                            }
-                        }
-                    }
-                }
-            }
-        } else if let chosenImage = info[.originalImage] as? UIImage {
-            let exif = (options["includeExif"] as? Bool == true) ? info[.mediaMetadata] as? [String: Any] : nil
-            print("SHOW_INFO: \(info), asset: \(String(describing: info[.phAsset]))")
-            if let asset = info[.phAsset] as? PHAsset {
-                // You have your asset directly now
-                processSingleImagePick(chosenImage,
-                                       withExif: exif,
-                                       withViewController: picker,
-                                       withSourceURL: croppingFile?["sourceURL"] as? String,
-                                       withLocalIdentifier: asset.localIdentifier,
-                                       withFilename: croppingFile?["filename"] as? String,
-                                       withCreationDate: croppingFile?["creationDate"] as? Date,
-                                       withModificationDate: croppingFile?["modificationDate"] as? Date)
-            } else {
-                // Handle the case where .phAsset is not provided
-                print("NO_ASSET_PROVIDED")
-            }
-        }
-    }
-    
-    
-    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        picker.dismiss(animated: true) {
-            if let reject = self.reject {
-                reject(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
-            }
+    func imagePickerControllerDidCancel(_ imagePickerController: UIImagePickerController) {
+        imagePickerController.dismiss(animated: true) {
+            self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
         }
     }
     
@@ -234,7 +189,202 @@ CropViewControllerDelegate {
         }
     }
     
+    @available(iOS 14.0, *)
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        //        picker.dismiss(animated: true)
+        let manager = PHImageManager.default()
+        let options = PHImageRequestOptions()
+        options.isSynchronous = false
+        options.isNetworkAccessAllowed = true
+        let fetchOptions = PHFetchOptions()
+        
+        if let multiple = self.options["multiple"] as? Bool, multiple {
+            var selections = [Any]()
+            
+            self.showActivityIndicator { (indicatorView, overlayView) in
+                let lock = NSLock()
+                var processed = 0
+                let identifiers = results.compactMap { $0.assetIdentifier }
+                fetchOptions.fetchLimit = identifiers.count
+                let phAssets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: fetchOptions)
+                
+                phAssets.enumerateObjects { (phAsset, _, _) in
+                    if phAsset.mediaType == .video {
+                        self.getVideoAsset(forAsset: phAsset) { video in
+                            DispatchQueue.main.async {
+                                lock.lock()
+                                if video == nil {
+                                    indicatorView.stopAnimating()
+                                    overlayView.removeFromSuperview()
+                                    picker.dismiss(animated: true) {
+                                        self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
+                                    }
+                                    return
+                                }
+                                selections.append(video as Any)
+                                processed += 1
+                                lock.unlock()
+                                
+                                if processed == phAssets.count {
+                                    indicatorView.stopAnimating()
+                                    overlayView.removeFromSuperview()
+                                    picker.dismiss(animated: true) {
+                                        self.resolve?(selections)
+                                    }
+                                    return
+                                }
+                            }
+                        }
+                    } else {
+                        phAsset.requestContentEditingInput(with: nil) { contentEditingInput, info in
+                            manager.requestImageData(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
+                                guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
+                                
+                                DispatchQueue.main.async {
+                                    lock.lock()
+                                    
+                                    var exif: [String: Any]?
+                                    if let includeExif = self.options["includeExif"] as? Bool, includeExif {
+                                        if let imageWithData = CIImage(data: imageData) {
+                                            exif = imageWithData.properties
+                                        }
+                                    }
+                                    
+                                    if let imgT = UIImage(data: imageData) {
+                                        let forceJpg = (self.options["forceJpg"] as? Bool) ?? false
+                                        let compressQuality = self.options["compressImageQuality"] as? Float
+                                        let isLossless = (compressQuality == nil || compressQuality! >= 0.8)
+                                        let maxWidth = self.options["compressImageMaxWidth"] as? CGFloat
+                                        let useOriginalWidth = (maxWidth == nil || maxWidth! >= imgT.size.width)
+                                        let maxHeight = self.options["compressImageMaxHeight"] as? CGFloat
+                                        let useOriginalHeight = (maxHeight == nil || maxHeight! >= imgT.size.height)
+                                        
+                                        let mimeType: String = self.determineMimeType(imageData: imageData)
+                                        let isKnownMimeType = !mimeType.isEmpty
+                                        
+                                        var imageResult = ImageResult()
+                                        
+                                        if isLossless, useOriginalWidth, useOriginalHeight, isKnownMimeType, !forceJpg {
+                                            imageResult.data = imageData
+                                            imageResult.width = NSNumber(value: Float(imgT.size.width))
+                                            imageResult.height = NSNumber(value: Float(imgT.size.height))
+                                            imageResult.mime = mimeType
+                                            imageResult.image = imgT
+                                        } else {
+                                            if let compression = self.compression {
+                                                imageResult = compression.compressImage(image: imgT.fixOrientation(), with: self.options)
+                                            } else {
+                                                // Handle the case where 'self.compression' is nil.
+                                                print("Compression instance not available!")
+                                            }
+                                        }
+                                        
+                                        var filePath = ""
+                                        if let writeTempFile = self.options["writeTempFile"] as? Bool, writeTempFile {
+                                            if let imageData = imageResult.data {
+                                                filePath = self.persistFile(imageData) ?? ""
+                                                if filePath.isEmpty {
+                                                    indicatorView.stopAnimating()
+                                                    overlayView.removeFromSuperview()
+                                                    picker.dismiss(animated: true) {
+                                                        self.reject?(CIPErrors.cannotSaveImageKey, CIPErrors.cannotSaveImageMsg, nil)
+                                                    }
+                                                    return
+                                                }
+                                            }
+                                        }
+                                        
+                                        let dataSize = imageResult.data?.count ?? 0
+                                        let attachmentResponse = self.createAttachmentResponse(filePath: filePath,
+                                                                                               exif: exif,
+                                                                                               sourceURL: sourceURL.absoluteString,
+                                                                                               localIdentifier: phAsset.localIdentifier,
+                                                                                               filename: phAsset.value(forKey: "filename") as? String,
+                                                                                               width: imageResult.width ?? NSNumber(value: 0),
+                                                                                               height: imageResult.height ?? NSNumber(value: 0),
+                                                                                               mime: imageResult.mime ?? "",
+                                                                                               size: NSNumber(value: dataSize),
+                                                                                               duration: nil,
+                                                                                               data: (self.options["includeBase64"] as? Bool) ?? false ? imageData.base64EncodedString() : nil,
+                                                                                               cropRect: .null,
+                                                                                               creationDate: phAsset.creationDate,
+                                                                                               modificationDate: phAsset.modificationDate)
+                                        
+                                        selections.append(attachmentResponse)
+                                    }
+                                    
+                                    processed += 1
+                                    lock.unlock()
+                                    
+                                    if processed == phAssets.count {
+                                        indicatorView.stopAnimating()
+                                        overlayView.removeFromSuperview()
+                                        picker.dismiss(animated: true) {
+                                            self.resolve?(selections)
+                                        }
+                                        return
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            guard let identifier = results.first?.assetIdentifier else { return }
+            fetchOptions.fetchLimit = 1
+            guard let phAsset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: fetchOptions).firstObject else { return }
+            self.showActivityIndicator { (indicatorView, overlayView) in
+                if phAsset.mediaType == .video {
+                    self.getVideoAsset(forAsset: phAsset) { video in
+                        DispatchQueue.main.async {
+                            indicatorView.stopAnimating()
+                            overlayView.removeFromSuperview()
+                            picker.dismiss(animated: true) {
+                                if let video = video {
+                                    self.resolve?(video)
+                                } else {
+                                    self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    phAsset.requestContentEditingInput(with: nil) { contentEditingInput, info in
+                        manager.requestImageData(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
+                            guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
+                            
+                            var exif: [String: Any]?
+                            if let includeExif = self.options["includeExif"] as? Bool, includeExif {
+                                if let imageWithData = CIImage(data: imageData) {
+                                    exif = imageWithData.properties
+                                }
+                            }
+                            
+                            DispatchQueue.main.async {
+                                indicatorView.stopAnimating()
+                                overlayView.removeFromSuperview()
+                                
+                                self.processSingleImagePick(UIImage(data: imageData)!,
+                                                            withExif: exif,
+                                                            withViewController: picker,
+                                                            withSourceURL: sourceURL.absoluteString,
+                                                            withLocalIdentifier: phAsset.localIdentifier,
+                                                            withFilename: phAsset.value(forKey: "filename") as? String,
+                                                            withCreationDate: phAsset.creationDate,
+                                                            withModificationDate: phAsset.modificationDate)
+                            }
+                        }
+                    }
+                }
+            }
+            return
+        }
+    }
+    
+    @available(iOS 14.0, *)
     func openPicker(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+        print("OPEN_PICKER")
         setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
         currentSelectionMode = .picker
         
@@ -245,116 +395,33 @@ CropViewControllerDelegate {
             }
             
             DispatchQueue.main.async {
-                let imagePickerController = UIImagePickerController()
-                imagePickerController.delegate = self
-                //                    imagePickerController.allowsMultipleSelection = options["multiple"] as? Bool ?? false
-                //                    imagePickerController.minimumNumberOfSelection = abs(options["minFiles"] as? Int ?? 0)
-                //                    imagePickerController.maximumNumberOfSelection = abs(options["maxFiles"] as? Int ?? 0)
-                //                    imagePickerController.showsNumberOfSelectedAssets = options["showsSelectedCount"] as? Bool ?? false
-                //                    imagePickerController.sortOrder = options["sortOrder"] as? String
                 
-                if let smartAlbums = options["smartAlbums"] as? [String], !smartAlbums.isEmpty {
-                    let albums: [String: PHAssetCollectionSubtype] = [
-                        "Regular": .albumRegular,
-                        "SyncedEvent": .albumSyncedEvent,
-                        "SyncedFaces": .albumSyncedFaces,
-                        "SyncedAlbum": .albumSyncedAlbum,
-                        "Imported": .albumImported,
-                        "PhotoStream": .albumMyPhotoStream,
-                        "CloudShared": .albumCloudShared,
-                        "Generic": .smartAlbumGeneric,
-                        "Panoramas": .smartAlbumPanoramas,
-                        "Videos": .smartAlbumVideos,
-                        "Favorites": .smartAlbumFavorites,
-                        "Timelapses": .smartAlbumTimelapses,
-                        "AllHidden": .smartAlbumAllHidden,
-                        "RecentlyAdded": .smartAlbumRecentlyAdded,
-                        "Bursts": .smartAlbumBursts,
-                        "SlomoVideos": .smartAlbumSlomoVideos,
-                        "UserLibrary": .smartAlbumUserLibrary,
-                        "SelfPortraits": .smartAlbumSelfPortraits,
-                        "Screenshots": .smartAlbumScreenshots,
-                        "DepthEffect": .smartAlbumDepthEffect,
-                        "LivePhotos": .smartAlbumLivePhotos,
-                        "Animated": .smartAlbumAnimated,
-                        "LongExposure": .smartAlbumLongExposures
-                    ]
-                    
-                    var albumsToShow: [PHAssetCollectionSubtype] = []
-                    for smartAlbum in smartAlbums {
-                        if let albumSubtype = albums[smartAlbum] {
-                            albumsToShow.append(albumSubtype)
-                        }
-                    }
-                    imagePickerController.sourceType = .photoLibrary
-                }
-                
+                var configuration = PHPickerConfiguration(photoLibrary: PHPhotoLibrary.shared())
+                configuration.selectionLimit = options["multiple"] as? Bool == true ? 0 : 1
+                //                configuration.selection = .ordered # iOS 15
                 
                 if let cropping = options["cropping"] as? Bool, cropping {
-                    imagePickerController.mediaTypes = ["public.image"]
+                    configuration.filter = PHPickerFilter.images
+                    
                 } else if let mediaType = options["mediaType"] as? String {
                     switch mediaType {
                     case "photo":
-                        imagePickerController.mediaTypes = ["public.image"]
+                        configuration.filter = PHPickerFilter.images
                     case "video":
-                        imagePickerController.mediaTypes = ["public.movie"]
+                        configuration.filter = PHPickerFilter.videos
                     default:
-                        imagePickerController.mediaTypes = ["public.image", "public.movie"]
+                        break
                     }
                 }
                 
+                let imagePickerController = PHPickerViewController(configuration: configuration )
+                imagePickerController.delegate = self
                 imagePickerController.modalPresentationStyle = .fullScreen
-                self.getRootVC().present(imagePickerController, animated: true, completion: nil)
-                print("ARRIVED_end_openPicker")
+
+                self.getRootVC().present(imagePickerController, animated: true)
             }
         }
     }
-    
-    //    @available(iOS 14.0, *)
-    //    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-    //        return
-    //    }
-    
-    //    @available(iOS 14.0, *)
-    //    func openPicker(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
-    //        setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
-    //        currentSelectionMode = .picker
-    //
-    //        PHPhotoLibrary.requestAuthorization { status in
-    //            guard status == .authorized else {
-    //                rejecter(CIPErrors.noLibraryPermissionKey, CIPErrors.noLibraryPermissionMsg, nil)
-    //                return
-    //            }
-    //
-    //            DispatchQueue.main.async {
-    //
-    //                var configuration = PHPickerConfiguration()
-    //                configuration.selectionLimit = options["multiple"] as? Bool == true ? 10 : 1
-    //
-    //                if let cropping = options["cropping"] as? Bool, cropping {
-    //                    configuration.filter = PHPickerFilter.images
-    //                } else if let mediaType = options["mediaType"] as? String {
-    //                    switch mediaType {
-    //                    case "photo":
-    //                        configuration.filter = PHPickerFilter.images
-    //                    case "video":
-    //                        configuration.filter = PHPickerFilter.videos
-    //                    default:
-    //                        break
-    //                    }
-    //                }
-    //
-    //                let imagePickerController = PHPickerViewController(configuration: configuration )
-    //                imagePickerController.delegate = self
-    //                //                imagePickerController.minimumNumberOfSelection = abs(options["minFiles"] as? Int ?? 0)
-    //                //                imagePickerController.maximumNumberOfSelection = abs(options["maxFiles"] as? Int ?? 0)
-    //                //                imagePickerController.showsNumberOfSelectedAssets = options["showsSelectedCount"] as? Bool ?? false
-    //                //                imagePickerController.sortOrder = options["sortOrder"] as? String
-    //                imagePickerController.modalPresentationStyle = .fullScreen
-    //                self.getRootVC().present(imagePickerController, animated: true, completion: nil)
-    //            }
-    //        }
-    //    }
     
     func openCropper(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
@@ -530,198 +597,6 @@ CropViewControllerDelegate {
             return "image/heic"
         default:
             return ""
-        }
-    }
-    
-    func uiImagePickerController(_ imagePickerController: UIImagePickerController, didFinishPickingAssets assets: [PHAsset]) {
-        print("ARRIVED_start_uiImagePickerController")
-        let manager = PHImageManager.default()
-        let options = PHImageRequestOptions()
-        options.isSynchronous = false
-        options.isNetworkAccessAllowed = true
-        
-        if let multiple = self.options["multiple"] as? Bool, multiple {
-            var selections = [Any]()
-            
-            showActivityIndicator { (indicatorView, overlayView) in
-                let lock = NSLock()
-                var processed = 0
-                
-                for phAsset in assets {
-                    if phAsset.mediaType == .video {
-                        self.getVideoAsset(forAsset: phAsset) { video in
-                            DispatchQueue.main.async {
-                                lock.lock()
-                                if video == nil {
-                                    indicatorView.stopAnimating()
-                                    overlayView.removeFromSuperview()
-                                    imagePickerController.dismiss(animated: true) {
-                                        self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
-                                    }
-                                    return
-                                }
-                                selections.append(video as Any)
-                                processed += 1
-                                lock.unlock()
-                                
-                                if processed == assets.count {
-                                    indicatorView.stopAnimating()
-                                    overlayView.removeFromSuperview()
-                                    imagePickerController.dismiss(animated: true) {
-                                        self.resolve?(selections)
-                                    }
-                                    return
-                                }
-                            }
-                        }
-                    } else {
-                        phAsset.requestContentEditingInput(with: nil) { contentEditingInput, info in
-                            manager.requestImageData(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
-                                guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
-                                
-                                DispatchQueue.main.async {
-                                    lock.lock()
-                                    
-                                    var exif: [String: Any]?
-                                    if let includeExif = self.options["includeExif"] as? Bool, includeExif {
-                                        if let imageWithData = CIImage(data: imageData) {
-                                            exif = imageWithData.properties
-                                        }
-                                    }
-                                    
-                                    if let imgT = UIImage(data: imageData) {
-                                        let forceJpg = (self.options["forceJpg"] as? Bool) ?? false
-                                        let compressQuality = self.options["compressImageQuality"] as? Float
-                                        let isLossless = (compressQuality == nil || compressQuality! >= 0.8)
-                                        let maxWidth = self.options["compressImageMaxWidth"] as? CGFloat
-                                        let useOriginalWidth = (maxWidth == nil || maxWidth! >= imgT.size.width)
-                                        let maxHeight = self.options["compressImageMaxHeight"] as? CGFloat
-                                        let useOriginalHeight = (maxHeight == nil || maxHeight! >= imgT.size.height)
-                                        
-                                        let mimeType: String = self.determineMimeType(imageData: imageData)
-                                        let isKnownMimeType = !mimeType.isEmpty
-                                        
-                                        var imageResult = ImageResult()
-                                        
-                                        if isLossless, useOriginalWidth, useOriginalHeight, isKnownMimeType, !forceJpg {
-                                            imageResult.data = imageData
-                                            imageResult.width = NSNumber(value: Float(imgT.size.width))
-                                            imageResult.height = NSNumber(value: Float(imgT.size.height))
-                                            imageResult.mime = mimeType
-                                            imageResult.image = imgT
-                                        } else {
-                                            if let compression = self.compression {
-                                                imageResult = compression.compressImage(image: imgT.fixOrientation(), with: self.options)
-                                            } else {
-                                                // Handle the case where 'self.compression' is nil.
-                                                print("Compression instance not available!")
-                                            }
-                                        }
-                                        
-                                        var filePath = ""
-                                        if let writeTempFile = self.options["writeTempFile"] as? Bool, writeTempFile {
-                                            if let imageData = imageResult.data {
-                                                filePath = self.persistFile(imageData) ?? ""
-                                                if filePath.isEmpty {
-                                                    indicatorView.stopAnimating()
-                                                    overlayView.removeFromSuperview()
-                                                    imagePickerController.dismiss(animated: true) {
-                                                        self.reject?(CIPErrors.cannotSaveImageKey, CIPErrors.cannotSaveImageMsg, nil)
-                                                    }
-                                                    return
-                                                }
-                                            }
-                                        }
-                                        
-                                        let dataSize = imageResult.data?.count ?? 0
-                                        let attachmentResponse = self.createAttachmentResponse(filePath: filePath,
-                                                                                               exif: exif,
-                                                                                               sourceURL: sourceURL.absoluteString,
-                                                                                               localIdentifier: phAsset.localIdentifier,
-                                                                                               filename: phAsset.value(forKey: "filename") as? String,
-                                                                                               width: imageResult.width ?? NSNumber(value: 0),
-                                                                                               height: imageResult.height ?? NSNumber(value: 0),
-                                                                                               mime: imageResult.mime ?? "",
-                                                                                               size: NSNumber(value: dataSize),
-                                                                                               duration: nil,
-                                                                                               data: (self.options["includeBase64"] as? Bool) ?? false ? imageData.base64EncodedString() : nil,
-                                                                                               cropRect: .null,
-                                                                                               creationDate: phAsset.creationDate,
-                                                                                               modificationDate: phAsset.modificationDate)
-                                        
-                                        selections.append(attachmentResponse)
-                                    }
-                                    
-                                    processed += 1
-                                    lock.unlock()
-                                    
-                                    if processed == assets.count {
-                                        indicatorView.stopAnimating()
-                                        overlayView.removeFromSuperview()
-                                        imagePickerController.dismiss(animated: true) {
-                                            self.resolve?(selections)
-                                        }
-                                        return
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            guard let phAsset = assets.first else { return }
-            
-            self.showActivityIndicator { (indicatorView, overlayView) in
-                if phAsset.mediaType == .video {
-                    self.getVideoAsset(forAsset: phAsset) { video in
-                        DispatchQueue.main.async {
-                            indicatorView.stopAnimating()
-                            overlayView.removeFromSuperview()
-                            imagePickerController.dismiss(animated: true) {
-                                if let video = video {
-                                    self.resolve?(video)
-                                } else {
-                                    self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    phAsset.requestContentEditingInput(with: nil) { contentEditingInput, info in
-                        manager.requestImageData(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
-                            guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
-                            
-                            var exif: [String: Any]?
-                            if let includeExif = self.options["includeExif"] as? Bool, includeExif {
-                                if let imageWithData = CIImage(data: imageData) {
-                                    exif = imageWithData.properties
-                                }
-                            }
-                            
-                            DispatchQueue.main.async {
-                                indicatorView.stopAnimating()
-                                overlayView.removeFromSuperview()
-                                
-                                self.processSingleImagePick(UIImage(data: imageData)!,
-                                                            withExif: exif,
-                                                            withViewController: imagePickerController,
-                                                            withSourceURL: sourceURL.absoluteString,
-                                                            withLocalIdentifier: phAsset.localIdentifier,
-                                                            withFilename: phAsset.value(forKey: "filename") as? String,
-                                                            withCreationDate: phAsset.creationDate,
-                                                            withModificationDate: phAsset.modificationDate)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    func uiImagePickerControllerDidCancel(_ imagePickerController: UIImagePickerController) {
-        imagePickerController.dismiss(animated: true) {
-            self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
         }
     }
     

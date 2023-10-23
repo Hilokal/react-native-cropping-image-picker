@@ -1,3 +1,4 @@
+@available(iOS 14.0, *)
 @objc(CroppingImagePicker)
 class CroppingImagePicker: NSObject {
     
