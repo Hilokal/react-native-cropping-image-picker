@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import {
   StyleSheet,
+  SafeAreaView,
   View,
   Text,
   ScrollView,
@@ -104,6 +105,15 @@ export default function App() {
     if (image && image?.uri) {
       cleanSingle(image.uri)
         .then(() => {
+          if (state?.image && state?.image?.uri === image?.uri) {
+            setState({ image: null });
+          }
+          if (state?.images) {
+            const updatedImages = state.images.filter(
+              (img: Asset) => img.uri !== image?.uri
+            );
+            setState((prevState) => ({ ...prevState, images: updatedImages }));
+          }
           console.log(`removed tmp image ${image?.uri} from tmp directory`);
         })
         .catch((e) => {
@@ -175,6 +185,7 @@ export default function App() {
       })
       .catch((e) => {
         console.log(e);
+        console.log(`COULDN'T GET IMAGE IN PICK SINGLE!`);
         Alert.alert(e.message ? e.message : e);
       });
   }
@@ -237,7 +248,7 @@ export default function App() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView style={styles.assetView}>
         {state?.image ? renderAsset(state?.image) : null}
         {state?.images
@@ -303,7 +314,7 @@ export default function App() {
           <Text style={styles.text}>Cleanup Single Image</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

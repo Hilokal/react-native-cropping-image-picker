@@ -1,12 +1,12 @@
 @available(iOS 14.0, *)
 @objc(CroppingImagePicker)
-class CroppingImagePicker: NSObject {
+class CroppingImagePicker: NSObject, RCTBridgeModule {
+    static func moduleName() -> String! {
+        return "CroppingImagePicker"
+    }
     
-    // @objc(multiply:withB:withResolver:withRejecter:)
-    // func multiply(a: Float, b: Float, resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock) -> Void {
-    //   resolve(a*b)
-    // }
-    
+    var bridge: RCTBridge!
+        
     @objc(openCamera:withResolver:withRejecter:)
     func openCamera(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         CroppingImagePickerImpl.shared.openCamera(options, resolver: resolver, rejecter: rejecter)
@@ -29,6 +29,6 @@ class CroppingImagePicker: NSObject {
     
     @objc(openCropper:withResolver:withRejecter:)
     func openCropper(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
-        CroppingImagePickerImpl.shared.openCropper(options, resolver: resolver, rejecter: rejecter)
+        CroppingImagePickerImpl.shared.openCropper(options, bridge: bridge, resolver: resolver, rejecter: rejecter)
     }
 }

@@ -1,7 +1,5 @@
 import UIKit
-import AVFoundation
 import MobileCoreServices
-import Photos
 import CropViewController
 import PhotosUI
 import React
@@ -191,7 +189,12 @@ class CroppingImagePickerImpl: NSObject,
     
     @available(iOS 14.0, *)
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        //        picker.dismiss(animated: true)
+        if (results.isEmpty) {
+            picker.dismiss(animated: true) {
+                self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
+            }
+        }
+        
         let manager = PHImageManager.default()
         let options = PHImageRequestOptions()
         options.isSynchronous = false
@@ -205,6 +208,7 @@ class CroppingImagePickerImpl: NSObject,
                 let lock = NSLock()
                 var processed = 0
                 let identifiers = results.compactMap { $0.assetIdentifier }
+                
                 fetchOptions.fetchLimit = identifiers.count
                 let phAssets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: fetchOptions)
                 
@@ -333,7 +337,8 @@ class CroppingImagePickerImpl: NSObject,
         } else {
             guard let identifier = results.first?.assetIdentifier else { return }
             fetchOptions.fetchLimit = 1
-            guard let phAsset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: fetchOptions).firstObject else { return }
+            guard let phAsset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: fetchOptions).firstObject else {
+                return }
             self.showActivityIndicator { (indicatorView, overlayView) in
                 if phAsset.mediaType == .video {
                     self.getVideoAsset(forAsset: phAsset) { video in
@@ -364,7 +369,6 @@ class CroppingImagePickerImpl: NSObject,
                             DispatchQueue.main.async {
                                 indicatorView.stopAnimating()
                                 overlayView.removeFromSuperview()
-                                
                                 self.processSingleImagePick(UIImage(data: imageData)!,
                                                             withExif: exif,
                                                             withViewController: picker,
@@ -378,58 +382,65 @@ class CroppingImagePickerImpl: NSObject,
                     }
                 }
             }
-            return
         }
     }
     
     @available(iOS 14.0, *)
     func openPicker(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
-        print("OPEN_PICKER")
         setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
         currentSelectionMode = .picker
-        
-        PHPhotoLibrary.requestAuthorization { status in
-            guard status == .authorized else {
-                rejecter(CIPErrors.noLibraryPermissionKey, CIPErrors.noLibraryPermissionMsg, nil)
-                return
+        //        let status = PHPhotoLibrary.authorizationStatus(for: PHAccessLevel.readWrite)
+        //        print("PHOTO_AUTH_STATUS: \(status)")
+        //        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+        //            switch status {
+        //            case .authorized, .limited:
+        DispatchQueue.main.async {
+            let library = PHPhotoLibrary.shared()
+            var configuration = PHPickerConfiguration(photoLibrary: library)
+            configuration.selectionLimit = options["multiple"] as? Bool == true ? (options["maxFiles"] as? Int ?? 0) : 1
+            if #available(iOS 15.0, *) {
+                configuration.selection = .ordered
             }
             
-            DispatchQueue.main.async {
+            if let cropping = options["cropping"] as? Bool, cropping {
+                configuration.filter = PHPickerFilter.images
                 
-                var configuration = PHPickerConfiguration(photoLibrary: PHPhotoLibrary.shared())
-                configuration.selectionLimit = options["multiple"] as? Bool == true ? 0 : 1
-                //                configuration.selection = .ordered # iOS 15
-                
-                if let cropping = options["cropping"] as? Bool, cropping {
+            } else if let mediaType = options["mediaType"] as? String {
+                switch mediaType {
+                case "photo":
                     configuration.filter = PHPickerFilter.images
-                    
-                } else if let mediaType = options["mediaType"] as? String {
-                    switch mediaType {
-                    case "photo":
-                        configuration.filter = PHPickerFilter.images
-                    case "video":
-                        configuration.filter = PHPickerFilter.videos
-                    default:
-                        break
-                    }
+                case "video":
+                    configuration.filter = PHPickerFilter.videos
+                default:
+                    break
                 }
-                
-                let imagePickerController = PHPickerViewController(configuration: configuration )
-                imagePickerController.delegate = self
-                imagePickerController.modalPresentationStyle = .fullScreen
-
-                self.getRootVC().present(imagePickerController, animated: true)
             }
+            
+            let imagePickerController = PHPickerViewController(configuration: configuration )
+            imagePickerController.delegate = self
+            imagePickerController.modalPresentationStyle = .fullScreen
+            self.getRootVC().present(imagePickerController, animated: true)
         }
+        //            case .denied, .restricted:
+        //                rejecter(CIPErrors.noLibraryPermissionKey, CIPErrors.noLibraryPermissionMsg, nil)
+        //                return
+        //
+        //            case .notDetermined:
+        //                // User hasn't been asked for permission yet, they will be prompted soon due to the requestAuthorization call.
+        //                break
+        //
+        //            @unknown default:
+        //                break
+        //            }
+        //        }
     }
     
-    func openCropper(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    func openCropper(_ options: [String: Any], bridge: RCTBridge, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
         currentSelectionMode = .cropping
-        
         if let path = options["path"] as? String,
-           let url = URL(string: path),
-           let module = RCTImageLoader() {
+           let url = URL(string: "file://" + path),
+           let module = bridge.module(forName: "ImageLoader", lazilyLoadIfNecessary: true) as? RCTImageLoader {
             module.loadImage(with: URLRequest(url: url)) { (error, image) in
                 guard let image = image else {
                     rejecter(CIPErrors.cropperImageNotFoundKey, CIPErrors.cropperImageNotFoundMsg, nil)
@@ -579,7 +590,6 @@ class CroppingImagePickerImpl: NSObject,
             ]
         }
     
-    
     func determineMimeType(imageData: Data) -> String {
         var c: UInt8 = 0
         imageData.copyBytes(to: &c, count: 1)
@@ -612,14 +622,6 @@ class CroppingImagePickerImpl: NSObject,
         withFilename filename: String?,
         withCreationDate creationDate: Date?,
         withModificationDate modificationDate: Date?) {
-            print("ARRIVED_start_processSingleImagePick")
-            viewController.dismiss(animated: true, completion: waitAnimationEnd {
-                self.reject?(CIPErrors.pickerNoDataKey, CIPErrors.pickerNoDataMsg, nil)
-            })
-            
-            
-            print("id: \(String(describing: localIdentifier)) filename: \(filename ?? "")")
-            
             if let cropping = options["cropping"] as? Bool, cropping {
                 croppingFile = [
                     "sourceURL": sourceURL ?? "",
@@ -628,8 +630,7 @@ class CroppingImagePickerImpl: NSObject,
                     "creationDate": creationDate ?? Date(),
                     "modificationDate": modificationDate ?? Date()
                 ]
-                print("CroppingFile \(String(describing: croppingFile))")
-                cropImage(image.fixOrientation())
+                self.cropImage(image.fixOrientation())
             } else {
                 guard
                     let imageResult = compression?.compressImage(image: image.fixOrientation(), with: options),
@@ -640,22 +641,22 @@ class CroppingImagePickerImpl: NSObject,
                     })
                     return
                 }
-                
                 viewController.dismiss(animated: true, completion: waitAnimationEnd {
-                    self.resolve?(self.createAttachmentResponse(filePath: filePath,
-                                                                exif: exif,
-                                                                sourceURL: sourceURL,
-                                                                localIdentifier: localIdentifier,
-                                                                filename: filename,
-                                                                width: imageResult.width ?? NSNumber(value: 0),
-                                                                height: imageResult.height ?? NSNumber(value: 0),
-                                                                mime: imageResult.mime ?? "",
-                                                                size: NSNumber(value: imageData.count),
-                                                                duration: nil,
-                                                                data: (self.options["includeBase64"] as? Bool == true) ? imageData.base64EncodedString() : nil,
-                                                                cropRect: CGRect.null,
-                                                                creationDate: creationDate,
-                                                                modificationDate: modificationDate))
+                    let response = self.createAttachmentResponse(filePath: filePath,
+                                                                 exif: exif,
+                                                                 sourceURL: sourceURL,
+                                                                 localIdentifier: localIdentifier,
+                                                                 filename: filename,
+                                                                 width: imageResult.width ?? NSNumber(value: 0),
+                                                                 height: imageResult.height ?? NSNumber(value: 0),
+                                                                 mime: imageResult.mime ?? "",
+                                                                 size: NSNumber(value: imageData.count),
+                                                                 duration: nil,
+                                                                 data: (self.options["includeBase64"] as? Bool == true) ? imageData.base64EncodedString() : nil,
+                                                                 cropRect: CGRect.null,
+                                                                 creationDate: creationDate,
+                                                                 modificationDate: modificationDate)
+                    self.resolve?(response)
                 })
             }
         }
@@ -717,8 +718,8 @@ class CroppingImagePickerImpl: NSObject,
     // we are saving image and saving it to the tmp location where we are allowed to access image later
     func persistFile(_ data: Data) -> String? {
         let tmpDirFullPath = getTmpDirectory()
-        let fileName = "\(UUID().uuidString).jpg"
-        let filePath = tmpDirFullPath.appending("/").appending(fileName)
+        let fileName = "\(UUID().uuidString).jpeg"
+        let filePath = tmpDirFullPath.appending(fileName)
         
         do {
             try data.write(to: URL(fileURLWithPath: filePath), options: .atomic)
@@ -727,7 +728,6 @@ class CroppingImagePickerImpl: NSObject,
             return nil
         }
     }
-    
     
     func cropImage(_ image: UIImage) {
         DispatchQueue.main.async {
@@ -745,27 +745,22 @@ class CroppingImagePickerImpl: NSObject,
                 cropVC.aspectRatioLockEnabled = !(self.options["freeStyleCropEnabled"] as? Bool ?? false)
                 cropVC.resetAspectRatioEnabled = !cropVC.aspectRatioLockEnabled
             }
-            
             cropVC.title = self.options["cropperToolbarTitle"] as? String
             cropVC.delegate = self
-            
             if let rawDoneButtonColor = self.options["cropperChooseColor"] as? String {
                 cropVC.doneButtonColor = UIColor.from(hexString: rawDoneButtonColor)
             }
             if let rawCancelButtonColor = self.options["cropperCancelColor"] as? String {
                 cropVC.cancelButtonColor = UIColor.from(hexString: rawCancelButtonColor)
             }
-            
             cropVC.doneButtonTitle = self.options["cropperChooseText"] as? String
             cropVC.cancelButtonTitle = self.options["cropperCancelText"] as? String
             cropVC.rotateButtonsHidden = self.options["cropperRotateButtonsHidden"] as? Bool ?? false
-            
             cropVC.modalPresentationStyle = .fullScreen
             if #available(iOS 15.0, *) {
                 cropVC.modalTransitionStyle = .coverVertical
             }
-            
-            self.getRootVC().present(cropVC, animated: false, completion: nil)
+            self.getRootVC().present(cropVC, animated: false)
         }
     }
     
