@@ -134,6 +134,40 @@ class CroppingImagePickerImpl: NSObject,
 #endif
     }
     
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        if let mediaType = info[.mediaType] as? String, mediaType == kUTTypeMovie as String {
+            if let url = info[.mediaURL] as? URL {
+                let asset = AVURLAsset(url: url)
+                let fileName = asset.url.lastPathComponent
+                handleVideo(asset: asset,
+                            withFileName: fileName,
+                            withLocalIdentifier: nil) { video in
+                    DispatchQueue.main.async {
+                        if let video = video {
+                            picker.dismiss(animated: true) {
+                                self.resolve?(video)
+                            }
+                        } else {
+                            picker.dismiss(animated: true) {
+                                self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
+                            }
+                        }
+                    }
+                }
+            }
+        } else if let chosenImage = info[.originalImage] as? UIImage {
+            let exif = (options["includeExif"] as? Bool == true) ? info[.mediaMetadata] as? [String: Any] : nil
+            self.processSingleImagePick(chosenImage,
+                                        withExif: exif,
+                                        withViewController: picker,
+                                        withSourceURL: croppingFile?["sourceURL"] as? String,
+                                        withLocalIdentifier: croppingFile?["localIdentifier"] as? String,
+                                        withFilename: croppingFile?["filename"] as? String,
+                                        withCreationDate: croppingFile?["creationDate"] as? Date,
+                                        withModificationDate: croppingFile?["modificationDate"] as? Date)
+        }
+    }
+    
     func imagePickerControllerDidCancel(_ imagePickerController: UIImagePickerController) {
         imagePickerController.dismiss(animated: true) {
             self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
