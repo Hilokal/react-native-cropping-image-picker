@@ -1,14 +1,14 @@
 //
-//  UIColor+Extensions.swift
+//  UIColor+Extension.swift
 //  react-native-cropping-image-picker
 //
-//  Created by GoldenSoju on 2023/10/19.
+//  Created by Hilokal on 2023/10/19.
 //
 
 import Foundation
 
 extension UIColor {
-    static func from(hexString: String) -> UIColor {
+    static func fromHex(hexString: String) -> UIColor {
         var rgbValue: UInt64 = 0
         let scanner = Scanner(string: hexString)
         scanner.scanLocation = 1  // bypass '#' character

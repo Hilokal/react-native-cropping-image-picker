@@ -1,5 +1,5 @@
 //
-//  CGRect+Extensions.swift
+//  CGRect+Extension.swift
 //  react-native-cropping-image-picker
 //
 //  Created by GoldenSoju on 2023/10/19.

@@ -1,13 +1,13 @@
 //
-//  CroppingImagePickerErrors.swift
+//  CIPError.swift
 //  react-native-cropping-image-picker
 //
-//  Created by GoldenSoju on 2023/10/19.
+//  Created by Hilokal on 2023/10/19.
 //
 
 import Foundation
 
-struct ImageCropPickerError {
+struct CIPError {
     static let cannotRunCameraOnSimulatorKey = "E_PICKER_CANNOT_RUN_CAMERA_ON_SIMULATOR"
     static let cannotRunCameraOnSimulatorMsg = "Cannot run camera on simulator"
 

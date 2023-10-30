@@ -107,7 +107,7 @@ class CroppingImagePickerImpl: NSObject,
 #else
         checkCameraPermissions { granted in
             if !granted {
-                rejecter(CIPErrors.noCameraPermissionKey, CIPErrors.noCameraPermissionMsg, nil)
+                rejecter(CIPError.noCameraPermissionKey, CIPError.noCameraPermissionMsg, nil)
                 return
             }
             
@@ -149,7 +149,7 @@ class CroppingImagePickerImpl: NSObject,
                             }
                         } else {
                             picker.dismiss(animated: true) {
-                                self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
+                                self.reject?(CIPError.cannotProcessVideoKey, CIPError.cannotProcessVideoMsg, nil)
                             }
                         }
                     }
@@ -170,7 +170,7 @@ class CroppingImagePickerImpl: NSObject,
     
     func imagePickerControllerDidCancel(_ imagePickerController: UIImagePickerController) {
         imagePickerController.dismiss(animated: true) {
-            self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
+            self.reject?(CIPError.pickerCancelKey, CIPError.pickerCancelMsg, nil)
         }
     }
     
@@ -209,13 +209,13 @@ class CroppingImagePickerImpl: NSObject,
             try FileManager.default.removeItem(atPath: path)
             resolver(nil)
         } catch {
-            rejecter(CIPErrors.cleanupErrorKey, CIPErrors.cleanupErrorMsg, nil)
+            rejecter(CIPError.cleanupErrorKey, CIPError.cleanupErrorMsg, nil)
         }
     }
     
     func clean(resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         if !cleanTmpDirectory() {
-            rejecter(CIPErrors.cleanupErrorKey, CIPErrors.cleanupErrorMsg, nil)
+            rejecter(CIPError.cleanupErrorKey, CIPError.cleanupErrorMsg, nil)
         } else {
             resolver(nil)
         }
@@ -225,7 +225,7 @@ class CroppingImagePickerImpl: NSObject,
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         if (results.isEmpty) {
             picker.dismiss(animated: true) {
-                self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
+                self.reject?(CIPError.pickerCancelKey, CIPError.pickerCancelMsg, nil)
             }
         }
         
@@ -255,7 +255,7 @@ class CroppingImagePickerImpl: NSObject,
                                     indicatorView.stopAnimating()
                                     overlayView.removeFromSuperview()
                                     picker.dismiss(animated: true) {
-                                        self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
+                                        self.reject?(CIPError.cannotProcessVideoKey, CIPError.cannotProcessVideoMsg, nil)
                                     }
                                     return
                                 }
@@ -275,7 +275,7 @@ class CroppingImagePickerImpl: NSObject,
                         }
                     } else {
                         phAsset.requestContentEditingInput(with: nil) { contentEditingInput, info in
-                            manager.requestImageData(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
+                            manager.requestImageDataAndOrientation(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
                                 guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
                                 
                                 DispatchQueue.main.async {
@@ -325,7 +325,7 @@ class CroppingImagePickerImpl: NSObject,
                                                     indicatorView.stopAnimating()
                                                     overlayView.removeFromSuperview()
                                                     picker.dismiss(animated: true) {
-                                                        self.reject?(CIPErrors.cannotSaveImageKey, CIPErrors.cannotSaveImageMsg, nil)
+                                                        self.reject?(CIPError.cannotSaveImageKey, CIPError.cannotSaveImageMsg, nil)
                                                     }
                                                     return
                                                 }
@@ -383,14 +383,14 @@ class CroppingImagePickerImpl: NSObject,
                                 if let video = video {
                                     self.resolve?(video)
                                 } else {
-                                    self.reject?(CIPErrors.cannotProcessVideoKey, CIPErrors.cannotProcessVideoMsg, nil)
+                                    self.reject?(CIPError.cannotProcessVideoKey, CIPError.cannotProcessVideoMsg, nil)
                                 }
                             }
                         }
                     }
                 } else {
                     phAsset.requestContentEditingInput(with: nil) { contentEditingInput, info in
-                        manager.requestImageData(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
+                        manager.requestImageDataAndOrientation(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
                             guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
                             
                             var exif: [String: Any]?
@@ -456,7 +456,7 @@ class CroppingImagePickerImpl: NSObject,
             self.getRootVC().present(imagePickerController, animated: true)
         }
         //            case .denied, .restricted:
-        //                rejecter(CIPErrors.noLibraryPermissionKey, CIPErrors.noLibraryPermissionMsg, nil)
+        //                rejecter(CIPError.noLibraryPermissionKey, CIPError.noLibraryPermissionMsg, nil)
         //                return
         //
         //            case .notDetermined:
@@ -477,7 +477,7 @@ class CroppingImagePickerImpl: NSObject,
            let module = bridge.module(forName: "ImageLoader", lazilyLoadIfNecessary: true) as? RCTImageLoader {
             module.loadImage(with: URLRequest(url: url)) { (error, image) in
                 guard let image = image else {
-                    rejecter(CIPErrors.cropperImageNotFoundKey, CIPErrors.cropperImageNotFoundMsg, nil)
+                    rejecter(CIPError.cropperImageNotFoundKey, CIPError.cropperImageNotFoundMsg, nil)
                     return
                 }
                 self.cropImage(image.fixOrientation())
@@ -495,7 +495,7 @@ class CroppingImagePickerImpl: NSObject,
             loadingView.clipsToBounds = true
             
             // Create loading spinner
-            let activityView = UIActivityIndicatorView(style: .whiteLarge)
+            let activityView = UIActivityIndicatorView(style: UIActivityIndicatorView.Style.large)
             activityView.frame = CGRect(x: 65, y: 40, width: activityView.bounds.width, height: activityView.bounds.height)
             activityView.center = loadingView.center
             loadingView.addSubview(activityView)
@@ -671,7 +671,7 @@ class CroppingImagePickerImpl: NSObject,
                     let imageData = imageResult.data,
                     let filePath = persistFile(imageData) else {
                     viewController.dismiss(animated: true, completion: waitAnimationEnd {
-                        self.reject?(CIPErrors.cannotSaveImageKey, CIPErrors.cannotSaveImageMsg, nil)
+                        self.reject?(CIPError.cannotSaveImageKey, CIPError.cannotSaveImageMsg, nil)
                     })
                     return
                 }
@@ -719,7 +719,7 @@ class CroppingImagePickerImpl: NSObject,
             let imageData = imageResult.data,
             let filePath = persistFile(imageData) else {
             dismissCropper(controller, selectionDone: true, completion: waitAnimationEnd {
-                self.reject?(CIPErrors.cannotSaveImageKey, CIPErrors.cannotSaveImageMsg, nil)
+                self.reject?(CIPError.cannotSaveImageKey, CIPError.cannotSaveImageMsg, nil)
             })
             return
         }
@@ -782,10 +782,10 @@ class CroppingImagePickerImpl: NSObject,
             cropVC.title = self.options["cropperToolbarTitle"] as? String
             cropVC.delegate = self
             if let rawDoneButtonColor = self.options["cropperChooseColor"] as? String {
-                cropVC.doneButtonColor = UIColor.from(hexString: rawDoneButtonColor)
+                cropVC.doneButtonColor = UIColor.fromHex(hexString: rawDoneButtonColor)
             }
             if let rawCancelButtonColor = self.options["cropperCancelColor"] as? String {
-                cropVC.cancelButtonColor = UIColor.from(hexString: rawCancelButtonColor)
+                cropVC.cancelButtonColor = UIColor.fromHex(hexString: rawCancelButtonColor)
             }
             cropVC.doneButtonTitle = self.options["cropperChooseText"] as? String
             cropVC.cancelButtonTitle = self.options["cropperCancelText"] as? String
@@ -806,7 +806,7 @@ class CroppingImagePickerImpl: NSObject,
     func cropViewController(_ cropViewController: CropViewController, didFinishCancelled cancelled: Bool) {
         dismissCropper(cropViewController, selectionDone: false) {
             if self.currentSelectionMode == .cropping {
-                self.reject?(CIPErrors.pickerCancelKey, CIPErrors.pickerCancelMsg, nil)
+                self.reject?(CIPError.pickerCancelKey, CIPError.pickerCancelMsg, nil)
             }
         }
     }
