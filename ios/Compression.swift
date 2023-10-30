@@ -5,7 +5,7 @@ class Compression {
     var exportPresets: [String: String]
     
     init() {
-        var dic: [String: String] = [
+        let dic: [String: String] = [
             "640x480": AVAssetExportPreset640x480,
             "960x540": AVAssetExportPreset960x540,
             "1280x720": AVAssetExportPreset1280x720,

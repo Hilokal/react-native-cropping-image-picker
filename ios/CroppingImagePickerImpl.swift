@@ -281,74 +281,20 @@ class CroppingImagePickerImpl: NSObject,
                                 DispatchQueue.main.async {
                                     lock.lock()
                                     
-                                    var exif: [String: Any]?
-                                    if let includeExif = self.options["includeExif"] as? Bool, includeExif {
-                                        if let imageWithData = CIImage(data: imageData) {
-                                            exif = imageWithData.properties
-                                        }
-                                    }
-                                    
                                     if let imgT = UIImage(data: imageData) {
-                                        let forceJpg = (self.options["forceJpg"] as? Bool) ?? false
-                                        let compressQuality = self.options["compressImageQuality"] as? Float
-                                        let isLossless = (compressQuality == nil || compressQuality! >= 0.8)
-                                        let maxWidth = self.options["compressImageMaxWidth"] as? CGFloat
-                                        let useOriginalWidth = (maxWidth == nil || maxWidth! >= imgT.size.width)
-                                        let maxHeight = self.options["compressImageMaxHeight"] as? CGFloat
-                                        let useOriginalHeight = (maxHeight == nil || maxHeight! >= imgT.size.height)
                                         
-                                        let mimeType: String = self.determineMimeType(imageData: imageData)
-                                        let isKnownMimeType = !mimeType.isEmpty
+                                        let attachmentResponse = self.processSingleImagePhPick(
+                                            imageData,
+                                            indicatorView: indicatorView,
+                                            overlayView: overlayView,
+                                            picker: picker,
+                                            phAsset: phAsset,
+                                            sourceURL: sourceURL
+                                        )
                                         
-                                        var imageResult = ImageResult()
-                                        
-                                        if isLossless, useOriginalWidth, useOriginalHeight, isKnownMimeType, !forceJpg {
-                                            imageResult.data = imageData
-                                            imageResult.width = NSNumber(value: Float(imgT.size.width))
-                                            imageResult.height = NSNumber(value: Float(imgT.size.height))
-                                            imageResult.mime = mimeType
-                                            imageResult.image = imgT
-                                        } else {
-                                            if let compression = self.compression {
-                                                imageResult = compression.compressImage(image: imgT.fixOrientation(), with: self.options)
-                                            } else {
-                                                // Handle the case where 'self.compression' is nil.
-                                                print("Compression instance not available!")
-                                            }
+                                        if let unwrappedAttachmentResponse = attachmentResponse {
+                                            selections.append(unwrappedAttachmentResponse)
                                         }
-                                        
-                                        var filePath = ""
-                                        if let writeTempFile = self.options["writeTempFile"] as? Bool, writeTempFile {
-                                            if let imageData = imageResult.data {
-                                                filePath = self.persistFile(imageData) ?? ""
-                                                if filePath.isEmpty {
-                                                    indicatorView.stopAnimating()
-                                                    overlayView.removeFromSuperview()
-                                                    picker.dismiss(animated: true) {
-                                                        self.reject?(CIPError.cannotSaveImageKey, CIPError.cannotSaveImageMsg, nil)
-                                                    }
-                                                    return
-                                                }
-                                            }
-                                        }
-                                        
-                                        let dataSize = imageResult.data?.count ?? 0
-                                        let attachmentResponse = self.createAttachmentResponse(filePath: filePath,
-                                                                                               exif: exif,
-                                                                                               sourceURL: sourceURL.absoluteString,
-                                                                                               localIdentifier: phAsset.localIdentifier,
-                                                                                               filename: phAsset.value(forKey: "filename") as? String,
-                                                                                               width: imageResult.width ?? NSNumber(value: 0),
-                                                                                               height: imageResult.height ?? NSNumber(value: 0),
-                                                                                               mime: imageResult.mime ?? "",
-                                                                                               size: NSNumber(value: dataSize),
-                                                                                               duration: nil,
-                                                                                               data: (self.options["includeBase64"] as? Bool) ?? false ? imageData.base64EncodedString() : nil,
-                                                                                               cropRect: .null,
-                                                                                               creationDate: phAsset.creationDate,
-                                                                                               modificationDate: phAsset.modificationDate)
-                                        
-                                        selections.append(attachmentResponse)
                                     }
                                     
                                     processed += 1
@@ -393,24 +339,21 @@ class CroppingImagePickerImpl: NSObject,
                         manager.requestImageDataAndOrientation(for: phAsset, options: options) { imageData, dataUTI, orientation, info in
                             guard let sourceURL = contentEditingInput?.fullSizeImageURL, let imageData = imageData else { return }
                             
-                            var exif: [String: Any]?
-                            if let includeExif = self.options["includeExif"] as? Bool, includeExif {
-                                if let imageWithData = CIImage(data: imageData) {
-                                    exif = imageWithData.properties
-                                }
-                            }
-                            
                             DispatchQueue.main.async {
+                                
+                                let attachmentResponse = self.processSingleImagePhPick(
+                                    imageData,
+                                    indicatorView: indicatorView,
+                                    overlayView: overlayView,
+                                    picker: picker,
+                                    phAsset: phAsset,
+                                    sourceURL: sourceURL
+                                )
                                 indicatorView.stopAnimating()
                                 overlayView.removeFromSuperview()
-                                self.processSingleImagePick(UIImage(data: imageData)!,
-                                                            withExif: exif,
-                                                            withViewController: picker,
-                                                            withSourceURL: sourceURL.absoluteString,
-                                                            withLocalIdentifier: phAsset.localIdentifier,
-                                                            withFilename: phAsset.value(forKey: "filename") as? String,
-                                                            withCreationDate: phAsset.creationDate,
-                                                            withModificationDate: phAsset.modificationDate)
+                                picker.dismiss(animated: true) {
+                                    self.resolve?(attachmentResponse)
+                                }
                             }
                         }
                     }
@@ -423,11 +366,7 @@ class CroppingImagePickerImpl: NSObject,
     func openPicker(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
         currentSelectionMode = .picker
-        //        let status = PHPhotoLibrary.authorizationStatus(for: PHAccessLevel.readWrite)
-        //        print("PHOTO_AUTH_STATUS: \(status)")
-        //        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
-        //            switch status {
-        //            case .authorized, .limited:
+        
         DispatchQueue.main.async {
             let library = PHPhotoLibrary.shared()
             var configuration = PHPickerConfiguration(photoLibrary: library)
@@ -455,18 +394,6 @@ class CroppingImagePickerImpl: NSObject,
             imagePickerController.modalPresentationStyle = .fullScreen
             self.getRootVC().present(imagePickerController, animated: true)
         }
-        //            case .denied, .restricted:
-        //                rejecter(CIPError.noLibraryPermissionKey, CIPError.noLibraryPermissionMsg, nil)
-        //                return
-        //
-        //            case .notDetermined:
-        //                // User hasn't been asked for permission yet, they will be prompted soon due to the requestAuthorization call.
-        //                break
-        //
-        //            @unknown default:
-        //                break
-        //            }
-        //        }
     }
     
     func openCropper(_ options: [String: Any], bridge: RCTBridge, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
@@ -624,9 +551,36 @@ class CroppingImagePickerImpl: NSObject,
             ]
         }
     
-    func determineMimeType(imageData: Data) -> String {
+    func determineHEIFBrand(from data: Data) -> String {
+        guard data.count >= 12 else {
+            return ""
+        }
+        
+        let typeHeader = data[4...7]
+        guard String(data: typeHeader, encoding: .ascii) == "ftyp" else {
+            return ""
+        }
+        
+        let brandData = data[8...11]
+        guard let brand = String(data: brandData, encoding: .ascii) else {
+            return ""
+        }
+        
+        if ["heic", "heix", "heim", "heis"].contains(brand) {
+            return "heic"
+        } else if brand == "mif1" {
+            return "heif"
+        }
+        
+        return ""
+    }
+    
+    func determineMimeTypeFromImageData(from data: Data) -> String {
+        guard data.count > 0 else {
+            return ""
+        }
         var c: UInt8 = 0
-        imageData.copyBytes(to: &c, count: 1)
+        data.copyBytes(to: &c, count: 1)
         
         switch c {
         case 0xFF:
@@ -637,14 +591,43 @@ class CroppingImagePickerImpl: NSObject,
             return "image/gif"
         case 0x49, 0x4D:
             return "image/tiff"
-        case 0x00:
-            return "image/heic"
         default:
-            return ""
+            let heifBrand = determineHEIFBrand(from: data)
+            if !heifBrand.isEmpty {
+                return "image/\(heifBrand)"
+            }
         }
+        return ""
     }
     
-    // when user selected single image, with camera or from photo gallery,
+    func determineExtensionFromImageData(from data: Data) -> String {
+        guard data.count > 0 else {
+            return ".jpg"
+        }
+        
+        var c: UInt8 = 0
+        data.copyBytes(to: &c, count: 1)
+        
+        switch c {
+        case 0xFF:
+            return ".jpg"
+        case 0x89:
+            return ".png"
+        case 0x47:
+            return ".gif"
+        case 0x49, 0x4D:
+            return ".tiff"
+        default:
+            let heifBrand = determineHEIFBrand(from: data)
+            if !heifBrand.isEmpty {
+                return ".\(heifBrand)"
+            }
+        }
+        
+        return ".jpg"
+    }
+    
+    // when user selected single image from the camera
     // this method will take care of attaching image metadata, and sending image to cropping controller
     // or to user directly
     func processSingleImagePick(
@@ -694,6 +677,89 @@ class CroppingImagePickerImpl: NSObject,
                 })
             }
         }
+    
+    // when user selected single image from photo gallery,
+    // this method will take care of attaching image metadata, and sending image to cropping controller
+    // or to user directly
+    func processSingleImagePhPick(
+        _ imageData: Data,
+        indicatorView: UIActivityIndicatorView,
+        overlayView:UIView,
+        picker: PHPickerViewController,
+        phAsset: PHAsset,
+        sourceURL: URL
+    ) -> [String : Any?]? {
+        var exif: [String: Any]?
+        if let includeExif = self.options["includeExif"] as? Bool, includeExif {
+            if let imageWithData = CIImage(data: imageData) {
+                exif = imageWithData.properties
+            }
+        }
+        
+        if let imgT = UIImage(data: imageData) {
+            let forceJpg = (self.options["forceJpg"] as? Bool) ?? false
+            let compressQuality = self.options["compressImageQuality"] as? Float
+            let isLossless = (compressQuality == nil || compressQuality! >= 0.8)
+            let maxWidth = self.options["compressImageMaxWidth"] as? CGFloat
+            let useOriginalWidth = (maxWidth == nil || maxWidth! >= imgT.size.width)
+            let maxHeight = self.options["compressImageMaxHeight"] as? CGFloat
+            let useOriginalHeight = (maxHeight == nil || maxHeight! >= imgT.size.height)
+            
+            let mimeType: String = self.determineMimeTypeFromImageData(from: imageData)
+            let isKnownMimeType = !mimeType.isEmpty
+            
+            var imageResult = ImageResult()
+            
+            if isLossless, useOriginalWidth, useOriginalHeight, isKnownMimeType, !forceJpg {
+                imageResult.data = imageData
+                imageResult.width = NSNumber(value: Float(imgT.size.width))
+                imageResult.height = NSNumber(value: Float(imgT.size.height))
+                imageResult.mime = mimeType
+                imageResult.image = imgT
+            } else {
+                if let compression = self.compression {
+                    imageResult = compression.compressImage(image: imgT.fixOrientation(), with: self.options)
+                } else {
+                    // Handle the case where 'self.compression' is nil.
+                    print("Compression instance not available!")
+                }
+            }
+            
+            var filePath = ""
+            if let writeTempFile = self.options["writeTempFile"] as? Bool, writeTempFile {
+                if let imageData = imageResult.data {
+                    filePath = self.persistFile(imageData) ?? ""
+                    if filePath.isEmpty {
+                        indicatorView.stopAnimating()
+                        overlayView.removeFromSuperview()
+                        picker.dismiss(animated: true) {
+                            self.reject?(CIPError.cannotSaveImageKey, CIPError.cannotSaveImageMsg, nil)
+                        }
+                        return nil
+                    }
+                }
+            }
+            
+            let dataSize = imageResult.data?.count ?? 0
+            let attachmentResponse = self.createAttachmentResponse(filePath: filePath,
+                                                                   exif: exif,
+                                                                   sourceURL: sourceURL.absoluteString,
+                                                                   localIdentifier: phAsset.localIdentifier,
+                                                                   filename: phAsset.value(forKey: "filename") as? String,
+                                                                   width: imageResult.width ?? NSNumber(value: 0),
+                                                                   height: imageResult.height ?? NSNumber(value: 0),
+                                                                   mime: imageResult.mime ?? "",
+                                                                   size: NSNumber(value: dataSize),
+                                                                   duration: nil,
+                                                                   data: (self.options["includeBase64"] as? Bool) ?? false ? imageData.base64EncodedString() : nil,
+                                                                   cropRect: .null,
+                                                                   creationDate: phAsset.creationDate,
+                                                                   modificationDate: phAsset.modificationDate)
+            return attachmentResponse
+        } else {
+            return nil
+        }
+    }
     
     func dismissCropper(_ controller: UIViewController, selectionDone: Bool, completion: (() -> Void)? = nil) {
         switch currentSelectionMode {
@@ -752,13 +818,16 @@ class CroppingImagePickerImpl: NSObject,
     // we are saving image and saving it to the tmp location where we are allowed to access image later
     func persistFile(_ data: Data) -> String? {
         let tmpDirFullPath = getTmpDirectory()
-        let fileName = "\(UUID().uuidString).jpeg"
-        let filePath = tmpDirFullPath.appending(fileName)
+        let uuidString = UUID().uuidString
+        var filePath = "\(tmpDirFullPath)\(uuidString)"
+        let extensionString = determineExtensionFromImageData(from: data)
+        filePath = "\(filePath)\(extensionString)"
         
         do {
             try data.write(to: URL(fileURLWithPath: filePath), options: .atomic)
             return filePath
         } catch {
+            print("Error writing the data: \(error)")
             return nil
         }
     }
