@@ -1,6 +1,6 @@
 {
   "name": "react-native-cropping-image-picker",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Cropping and Picking Images",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
@@ -39,13 +39,13 @@
     "ios",
     "android"
   ],
-  "repository": "https://github.com/GoldenSoju/react-native-cropping-image-picker",
-  "author": "GoldenSoju <goldensoju@gmail.com> (https://github.com/GoldenSoju)",
+  "repository": "https://github.com/Hilokal/react-native-cropping-image-picker",
+  "author": "Hilokal <hilokal@gmail.com> (https://github.com/Hilokal)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/GoldenSoju/react-native-cropping-image-picker/issues"
+    "url": "https://github.com/Hilokal/react-native-cropping-image-picker/issues"
   },
-  "homepage": "https://github.com/GoldenSoju/react-native-cropping-image-picker#readme",
+  "homepage": "https://github.com/Hilokal/react-native-cropping-image-picker#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
@@ -104,7 +104,7 @@
       "tagName": "v${version}"
     },
     "npm": {
-      "publish": true
+      "publish": false
     },
     "github": {
       "release": true

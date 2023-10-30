@@ -36,7 +36,15 @@
 		</dict>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>Testing purposes</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Testing purposes</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Testing purposes</string>
+	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Testing purposes</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
