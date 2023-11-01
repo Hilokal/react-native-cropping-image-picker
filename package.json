@@ -1,6 +1,6 @@
 {
   "name": "react-native-cropping-image-picker",
-  "version": "0.0.1",
+  "version": "0.0.1-local.1",
   "description": "Cropping and Picking Images",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",

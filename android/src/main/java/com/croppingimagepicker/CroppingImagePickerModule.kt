@@ -316,12 +316,12 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       when {
         cropping || mediaType == "photo" -> {
           galleryIntent.type = "image/*"
-          if (cropping) {
-            galleryIntent.putExtra(
-              Intent.EXTRA_MIME_TYPES,
-              arrayOf("image/jpeg", "image/png")
-            )
-          }
+//          if (cropping) {
+//            galleryIntent.putExtra(
+//              Intent.EXTRA_MIME_TYPES,
+//              arrayOf("image/jpeg", "image/png")
+//            )
+//          }
         }
 
         mediaType == "video" -> galleryIntent.type = "video/*"
@@ -370,7 +370,6 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       resultCollector.setup(promise, false)
 
       val uri = Uri.parse(options.getString("path"))
-      // TODO: Cropping won't work if file is GIF, so maybe save as JPEG before cropping?
       permissionsCheck(activity, promise, listOf(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
         startCropping(activity, uri)
       }
@@ -418,9 +417,9 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
             resultCollector.notifySuccess(image)
           } else {
             resultCollector.notifyProblem(
-              "ERROR_GETTING_ASYNC_SELECTION",
-              "IMAGE is null"
-            ) //TODO: see what makes sense here
+              "ERROR_GET_ASYNC_SELECTION",
+              "IMAGE not found"
+            )
           }
         }
       }
@@ -554,7 +553,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   private fun validateImage(path: String): BitmapFactory.Options {
     return BitmapFactory.Options().apply {
       inJustDecodeBounds = true
-      inPreferredConfig = Bitmap.Config.RGB_565
+      inPreferredConfig = Bitmap.Config.ARGB_8888
       BitmapFactory.decodeFile(path, this)
 
       if (outMimeType == null || outWidth == 0 || outHeight == 0) {
@@ -672,7 +671,6 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
         MimeTypeMap.getSingleton().getMimeTypeFromExtension(it.lowercase())
       }
     }
-
     // To be able to crop GIFs, we have to convert them first to JPGs
     if (forceJpg && mime == "image/gif") {
       uri.path?.let {
@@ -782,9 +780,8 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   }
 
   private fun croppingResult(activity: Activity, data: Intent?) {
-
     data?.let {
-      val resultUri = UCrop.getOutput(it)
+      var resultUri = UCrop.getOutput(it)
       if (resultUri != null) {
         try {
           if (width > 0 && height > 0) {
@@ -798,15 +795,15 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
                 height,
                 100
               )
-            val uri = Uri.fromFile(resized)
-            val result = getSelection(activity, uri, false)
-
-            result?.let { writeableMap ->
-              writeableMap.putMap("cropRect", getCroppedRectMap(data))
-              resultCollector.setWaitCount(1)
-              resultCollector.notifySuccess(writeableMap)
-            } ?: throw Exception("Cannot crop video files")
+            resultUri = Uri.fromFile(resized) ?: resultUri
           }
+          val result = getSelection(activity, resultUri, false)
+          result?.let { writeableMap ->
+            writeableMap.putMap("cropRect", getCroppedRectMap(data))
+            resultCollector.setWaitCount(1)
+            resultCollector.notifySuccess(writeableMap)
+          } ?: throw Exception("Cannot crop video files")
+
         } catch (ex: Exception) {
           resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.message ?: "")
         }
