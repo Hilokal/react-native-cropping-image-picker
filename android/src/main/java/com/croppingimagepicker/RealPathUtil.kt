@@ -46,8 +46,7 @@ object RealPathUtil {
         isMediaDocument(uri) -> {
           val docId = DocumentsContract.getDocumentId(uri)
           val split = docId.split(":").toTypedArray()
-          val type = split[0]
-          val contentUri = when (type) {
+          val contentUri = when (split[0]) {
             "image" -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             "video" -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
             "audio" -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
@@ -80,7 +79,7 @@ object RealPathUtil {
    * @param uri file's URI
    * @return file that has been written
    */
-  private fun writeToFile(context: Context, originalFileName: String, uri: Uri): File? {
+  private fun writeToFile(context: Context, originalFileName: String, uri: Uri): File {
     val fileName = originalFileName.substringAfterLast('/')
     val tmpDir = File(context.cacheDir, "react-native-cropping-image-picker")
     tmpDir.mkdir()
@@ -131,7 +130,7 @@ object RealPathUtil {
         } else {
           val indexDisplayName = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
           val fileName = cursor.getString(indexDisplayName)
-          writeToFile(context, fileName, uri)?.absolutePath
+          writeToFile(context, fileName, uri).absolutePath
         }
       }
     }

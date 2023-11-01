@@ -12,7 +12,6 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.OutputStream
 import java.util.UUID
 
 class Compression {
@@ -40,7 +39,6 @@ class Compression {
     // Use original image exif orientation data to preserve image orientation
     val originalExif = ExifInterface(originalImagePath)
     val originalOrientation = originalExif.getAttribute(ExifInterface.TAG_ORIENTATION)
-
     val resizedBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
     val imageDirectory = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
 

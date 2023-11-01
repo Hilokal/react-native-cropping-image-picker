@@ -2,7 +2,7 @@
 //  CGRect+Extension.swift
 //  react-native-cropping-image-picker
 //
-//  Created by GoldenSoju on 2023/10/19.
+//  Created by Hilokal on 2023/10/19.
 //
 
 import Foundation
