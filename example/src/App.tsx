@@ -135,6 +135,7 @@ export default function App() {
       width: 200,
       height: 200,
       mediaType: 'photo',
+      forceJpg: true,
     })
       .then((image) => {
         console.log('received cropped image', image);
@@ -185,7 +186,6 @@ export default function App() {
       })
       .catch((e) => {
         console.log(e);
-        console.log(`COULDN'T GET IMAGE IN PICK SINGLE!`);
         Alert.alert(e.message ? e.message : e);
       });
   }
@@ -213,6 +213,50 @@ export default function App() {
         });
       })
       .catch((e) => console.error(e));
+  }
+
+  function pickSingleWithGifSupport(circular: boolean = false) {
+    openPicker({
+      cropping: false,
+      cropperCircleOverlay: circular,
+      sortOrder: 'none',
+      includeExif: true,
+      cropperStatusBarColor: 'white',
+      cropperToolbarColor: 'white',
+      cropperActiveWidgetColor: 'white',
+      cropperToolbarWidgetColor: '#3498DB',
+      mediaType: 'photo',
+    })
+      .then((image) => {
+        console.log('received image', image);
+        openCropper({
+          path: image.path,
+          width: 200,
+          height: 200,
+          mediaType: 'photo',
+          forceJpg: true,
+        })
+          .then((i) => {
+            console.log('received cropped image', i);
+            setState({
+              image: {
+                uri: i.path,
+                width: i.width,
+                height: i.height,
+                mime: i.mime,
+              },
+              images: null,
+            });
+          })
+          .catch((e) => {
+            console.log(e);
+            Alert.alert(e.message ? e.message : e);
+          });
+      })
+      .catch((e) => {
+        console.log(e);
+        Alert.alert(e.message ? e.message : e);
+      });
   }
 
   function renderVideo(video: Asset) {
@@ -303,6 +347,14 @@ export default function App() {
           style={styles.button}
         >
           <Text style={styles.text}>Select Single With Circular Cropping</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => pickSingleWithGifSupport()}
+          style={styles.button}
+        >
+          <Text style={styles.text}>
+            Select Single with Gif-Support and Cropping
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={pickMultiple} style={styles.button}>
           <Text style={styles.text}>Select Multiple</Text>

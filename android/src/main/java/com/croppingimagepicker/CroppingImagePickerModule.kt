@@ -19,6 +19,7 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.app.ActivityCompat
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.PromiseImpl
@@ -53,6 +54,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   private var enableRotationGesture = false
   private var disableCropperColorSetters = false
   private var useFrontCamera = false
+  private var forceJpg = false
   private var options: ReadableMap? = null
   private var cropperActiveWidgetColor: String? = null
   private var cropperStatusBarColor: String? = null
@@ -99,6 +101,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     enableRotationGesture = getBooleanOption(options, "enableRotationGesture")
     disableCropperColorSetters = getBooleanOption(options, "disableCropperColorSetters")
     useFrontCamera = getBooleanOption(options, "useFrontCamera")
+    forceJpg = getBooleanOption(options, "forceJpg")
     this.options = options
   }
 
@@ -126,7 +129,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   @ReactMethod
   fun clean(promise: Promise) {
     val activity = currentActivity ?: run {
-      promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist")
+      promise.reject(E_ACTIVITY_DOES_NOT_EXIST_KEY, E_ACTIVITY_DOES_NOT_EXIST_MSG)
       return
     }
 
@@ -150,7 +153,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     val activity = currentActivity
 
     if (activity == null) {
-      promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist")
+      promise.reject(E_ACTIVITY_DOES_NOT_EXIST_KEY, E_ACTIVITY_DOES_NOT_EXIST_MSG)
       return
     }
 
@@ -253,7 +256,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     val activity = currentActivity
 
     if (activity == null) {
-      promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist")
+      promise.reject(E_ACTIVITY_DOES_NOT_EXIST_KEY, E_ACTIVITY_DOES_NOT_EXIST_MSG)
       return
     }
 
@@ -355,7 +358,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       permissionsCheck(activity, promise, permissions) {
         initiatePicker(activity)
       }
-    } ?: promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist")
+    } ?: promise.reject(E_ACTIVITY_DOES_NOT_EXIST_KEY, E_ACTIVITY_DOES_NOT_EXIST_MSG)
   }
 
   @ReactMethod
@@ -367,10 +370,11 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       resultCollector.setup(promise, false)
 
       val uri = Uri.parse(options.getString("path"))
+      // TODO: Cropping won't work if file is GIF, so maybe save as JPEG before cropping?
       permissionsCheck(activity, promise, listOf(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
         startCropping(activity, uri)
       }
-    } ?: promise.reject(E_ACTIVITY_DOES_NOT_EXIST, "Activity doesn't exist")
+    } ?: promise.reject(E_ACTIVITY_DOES_NOT_EXIST_KEY, E_ACTIVITY_DOES_NOT_EXIST_MSG)
   }
 
   private fun getBase64StringFromFile(absoluteFilePath: String): String? {
@@ -397,7 +401,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
           getVideo(activity, path, mime)
           null
         } else {
-          getImage(path)
+          getImage(path, mime)
         }
       }
     }
@@ -409,7 +413,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
         if (mime.startsWith("video/")) {
           getVideo(activity, path, mime)
         } else {
-          val image = getImage(path)
+          val image = getImage(path, mime)
           if (image != null) {
             resultCollector.notifySuccess(image)
           } else {
@@ -461,6 +465,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
               putInt("size", File(videoPath).length().coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
               putInt("duration", duration.coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
               putString("path", "file://$videoPath")
+              putString("fileName", File(videoPath).name)
               putString("modificationDate", modificationDate.toString())
             }
 
@@ -558,7 +563,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     }
   }
 
-  private fun getImage(path: String): WritableMap? {
+  private fun getImage(path: String, mime: String): WritableMap? {
     if (path.startsWith("http://") || path.startsWith("https://")) {
       throw Exception("Cannot select remote files")
     }
@@ -566,32 +571,53 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     val originalOptions = validateImage(path)
     val localOptions = options
     if (localOptions != null) {
-      val compressedImage =
-        compression.compressImage(reactContext, localOptions, path, originalOptions)
-      val compressedImagePath = compressedImage.path
-      val compressedImageOptions = validateImage(compressedImagePath)
+      val responseMap = WritableNativeMap()
+      if (mime != "image/gif" || forceJpg) {
+        val compressedImage =
+          compression.compressImage(reactContext, localOptions, path, originalOptions)
+        val compressedImagePath = compressedImage.path
+        val compressedImageOptions = validateImage(compressedImagePath)
 
-      return WritableNativeMap().apply {
-        putString("path", "file://$compressedImagePath")
-        putInt("width", compressedImageOptions.outWidth)
-        putInt("height", compressedImageOptions.outHeight)
-        putString("mime", compressedImageOptions.outMimeType)
-        putInt("size", File(compressedImagePath).length().toInt())
-        putString("modificationDate", File(path).lastModified().toString())
+        responseMap.apply {
+          putString("path", "file://$compressedImagePath")
+          putInt("width", compressedImageOptions.outWidth)
+          putInt("height", compressedImageOptions.outHeight)
+          putString("mime", compressedImageOptions.outMimeType)
+          putInt("size", File(compressedImagePath).length().toInt())
+          putString("modificationDate", File(path).lastModified().toString())
+          putString("filename", File(path).name.toString())
 
-        if (includeBase64) {
-          putString("data", getBase64StringFromFile(compressedImagePath))
+          if (includeBase64) {
+            putString("data", getBase64StringFromFile(compressedImagePath))
+          }
         }
+      } else {
+        val originalFile = File(path)
+        responseMap.apply {
+          putString("path", "file://${originalFile.path}")
+          putInt("width", originalOptions.outWidth)
+          putInt("height", originalOptions.outHeight)
+          putString("mime", originalOptions.outMimeType)
+          putInt("size", originalFile.length().toInt())
+          putString("modificationDate", originalFile.lastModified().toString())
+          putString("filename", originalFile.name.toString())
 
-        if (includeExif) {
-          try {
-            val exif = ExifExtractor.extract(path)
-            putMap("exif", exif)
-          } catch (ex: Exception) {
-            ex.printStackTrace()
+          if (includeBase64) {
+            putString("data", getBase64StringFromFile(originalFile.path))
           }
         }
       }
+
+      if (includeExif) {
+        try {
+          val exif = ExifExtractor.extract(path)
+          responseMap.putMap("exif", exif)
+        } catch (ex: Exception) {
+          ex.printStackTrace()
+        }
+      }
+
+      return responseMap
     }
     return null
   }
@@ -628,9 +654,9 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
 
       if (enableRotationGesture) {
         setAllowedGestures(
-          UCropActivity.ALL,  // When 'scale'-tab active
-          UCropActivity.ALL,  // When 'rotate'-tab active
-          UCropActivity.ALL   // When 'aspect ratio'-tab active
+          tabScale = UCropActivity.ALL,  // When 'scale'-tab active
+          tabRotate = UCropActivity.ALL,  // When 'rotate'-tab active
+          tabAspectRatio = UCropActivity.ALL   // When 'aspect ratio'-tab active
         )
       }
 
@@ -638,15 +664,34 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
         configureCropperColors(this)
       }
     }
-
     val outputPath = Uri.fromFile(File(getTmpDir(activity), "${UUID.randomUUID()}.jpg"))
-    val uCrop = UCrop.of(uri, outputPath).withOptions(options)
-
-    if (width > 0 && height > 0) {
-      uCrop.withAspectRatio(width.toFloat(), height.toFloat())
+    val mime = if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
+      reactContext.contentResolver.getType(uri)
+    } else {
+      MimeTypeMap.getFileExtensionFromUrl(uri.toString())?.let {
+        MimeTypeMap.getSingleton().getMimeTypeFromExtension(it.lowercase())
+      }
     }
 
-    uCrop.start(activity)
+    // To be able to crop GIFs, we have to convert them first to JPGs
+    if (forceJpg && mime == "image/gif") {
+      uri.path?.let {
+        val file = getImage(it, mime)
+        file?.getString("path")?.let { path ->
+          val uCrop = UCrop.of(path.toUri(), outputPath).withOptions(options)
+          if (width > 0 && height > 0) {
+            uCrop.withAspectRatio(width.toFloat(), height.toFloat())
+          }
+          uCrop.start(activity)
+        }
+      }
+    } else {
+      val uCrop = UCrop.of(uri, outputPath).withOptions(options)
+      if (width > 0 && height > 0) {
+        uCrop.withAspectRatio(width.toFloat(), height.toFloat())
+      }
+      uCrop.start(activity)
+    }
   }
 
   private fun imagePickerResult(
@@ -737,9 +782,9 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   }
 
   private fun croppingResult(activity: Activity, data: Intent?) {
+
     data?.let {
       val resultUri = UCrop.getOutput(it)
-
       if (resultUri != null) {
         try {
           if (width > 0 && height > 0) {
@@ -836,7 +881,8 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     const val NAME = "CroppingImagePicker"
     private const val IMAGE_PICKER_REQUEST = 61110
     private const val CAMERA_PICKER_REQUEST = 61111
-    private const val E_ACTIVITY_DOES_NOT_EXIST = "E_ACTIVITY_DOES_NOT_EXIST"
+    private const val E_ACTIVITY_DOES_NOT_EXIST_KEY = "E_ACTIVITY_DOES_NOT_EXIST"
+    private const val E_ACTIVITY_DOES_NOT_EXIST_MSG = "Activity doesn't exist"
 
     private const val E_PICKER_CANCELLED_KEY = "E_PICKER_CANCELLED"
     private const val E_PICKER_CANCELLED_MSG = "User cancelled image selection"
