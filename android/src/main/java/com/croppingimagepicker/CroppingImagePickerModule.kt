@@ -316,14 +316,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       when {
         cropping || mediaType == "photo" -> {
           galleryIntent.type = "image/*"
-//          if (cropping) {
-//            galleryIntent.putExtra(
-//              Intent.EXTRA_MIME_TYPES,
-//              arrayOf("image/jpeg", "image/png")
-//            )
-//          }
         }
-
         mediaType == "video" -> galleryIntent.type = "video/*"
         else -> {
           galleryIntent.type = "*/*"

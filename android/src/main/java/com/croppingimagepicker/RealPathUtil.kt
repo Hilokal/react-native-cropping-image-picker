@@ -3,9 +3,11 @@ package com.croppingimagepicker
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 
@@ -37,10 +39,29 @@ object RealPathUtil {
 
         isDownloadsDocument(uri) -> {
           val id = DocumentsContract.getDocumentId(uri)
-          val contentUri = ContentUris.withAppendedId(
-            Uri.parse("content://downloads/public_downloads"), java.lang.Long.valueOf(id)
-          )
-          return getDataColumn(context, contentUri, null, null)
+          val contentUri: Uri? = when {
+            // Case for Android 10/API 29 with "msf:" format for downloaded files
+            id.startsWith("msf:") && Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> {
+              val resourceId = id.removePrefix("msf:")
+              MediaStore.Downloads.EXTERNAL_CONTENT_URI.buildUpon().appendPath(resourceId).build()
+            }
+            // This shouldn't happen, but just in case, we log it and return null
+            id.startsWith("msf:") -> {
+              Log.w(
+                "cropping-image-picker",
+                "Unexpected URI format for Android ${Build.VERSION.SDK_INT}: $id"
+              )
+              null
+            }
+            // Handle the "standard" format for downloaded files
+            else -> id.toLongOrNull()?.let { longId ->
+              ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), longId)
+            } ?: run {
+              Log.e("cropping-image-picker", "Failed to parse document ID: $id")
+              null
+            }
+          }
+          contentUri?.let { getDataColumn(context, it, null, null) }
         }
 
         isMediaDocument(uri) -> {
