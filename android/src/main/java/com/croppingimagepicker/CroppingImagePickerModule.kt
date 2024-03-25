@@ -19,7 +19,6 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.app.ActivityCompat
 import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.PromiseImpl
@@ -646,9 +645,9 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
 
       if (enableRotationGesture) {
         setAllowedGestures(
-          tabScale = UCropActivity.ALL,  // When 'scale'-tab active
-          tabRotate = UCropActivity.ALL,  // When 'rotate'-tab active
-          tabAspectRatio = UCropActivity.ALL   // When 'aspect ratio'-tab active
+          UCropActivity.ALL,  // When 'scale'-tab active
+          UCropActivity.ALL,  // When 'rotate'-tab active
+          UCropActivity.ALL   // When 'aspect ratio'-tab active
         )
       }
 
@@ -669,7 +668,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       uri.path?.let {
         val file = getImage(it, mime)
         file?.getString("path")?.let { path ->
-          val uCrop = UCrop.of(path.toUri(), outputPath).withOptions(options)
+          val uCrop = UCrop.of(Uri.parse(path), outputPath).withOptions(options)
           if (width > 0 && height > 0) {
             uCrop.withAspectRatio(width.toFloat(), height.toFloat())
           }
