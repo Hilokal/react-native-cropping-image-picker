@@ -41,6 +41,12 @@ export function openPicker<O extends Options>(
   return CroppingImagePicker.openPicker(options);
 }
 
+export function openLimitedAccessConfirmDialog<O extends Options>(
+  options: O
+): Promise<undefined> {
+  return CroppingImagePicker.openLimitedAccessConfirmDialog(options);
+}
+
 /**
  * AVAssetExportPreset presets.
  *

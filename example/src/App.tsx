@@ -18,6 +18,7 @@ import {
   openCamera,
   openCropper,
   openPicker,
+  openLimitedAccessConfirmDialog,
 } from 'react-native-cropping-image-picker';
 
 type Asset = {
@@ -191,28 +192,36 @@ export default function App() {
   }
 
   function pickMultiple() {
-    openPicker({
-      multiple: true,
-      waitAnimationEnd: false,
-      sortOrder: 'desc',
-      includeExif: true,
-      forceJpg: true,
-    })
-      .then((images) => {
-        setState({
-          image: null,
-          images: images.map((i) => {
-            console.log('received image', i);
-            return {
-              uri: i.path,
-              width: i.width,
-              height: i.height,
-              mime: i.mime,
-            };
-          }),
-        });
+    try {
+      openPicker({
+        multiple: true,
+        waitAnimationEnd: false,
+        sortOrder: 'desc',
+        includeExif: true,
+        forceJpg: true,
       })
-      .catch((e) => console.error(e));
+        .then((images) => {
+          setState({
+            image: null,
+            images: images.map((i) => {
+              console.log('received image', i);
+              return {
+                uri: i.path,
+                width: i.width,
+                height: i.height,
+                mime: i.mime,
+              };
+            }),
+          });
+        })
+        .catch((e) => console.error(e));
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  function showLimitedAccessConfirmDialog() {
+    openLimitedAccessConfirmDialog({}).catch((e) => console.error(e));
   }
 
   function pickSingleWithGifSupport(circular: boolean = false) {
@@ -358,6 +367,14 @@ export default function App() {
         </TouchableOpacity>
         <TouchableOpacity onPress={pickMultiple} style={styles.button}>
           <Text style={styles.text}>Select Multiple</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={showLimitedAccessConfirmDialog}
+          style={styles.button}
+        >
+          <Text style={styles.text}>
+            iOS - Show Limited Access Confirmation Dialog
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={cleanupImages} style={styles.button}>
           <Text style={styles.text}>Cleanup All Images</Text>

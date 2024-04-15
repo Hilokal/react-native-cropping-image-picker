@@ -246,6 +246,14 @@ class CroppingImagePickerImpl: NSObject,
                 fetchOptions.fetchLimit = identifiers.count
                 let phAssets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: fetchOptions)
                 
+                if phAssets.count == 0 {
+                    indicatorView.stopAnimating()
+                    overlayView.removeFromSuperview()
+                    picker.dismiss(animated: true) {
+                        self.reject?(CIPError.notGrantedAccessToAssetsKey, CIPError.notGrantedAccessToAssetsMsg, nil)
+                    }
+                }
+                
                 phAssets.enumerateObjects { (phAsset, _, _) in
                     if phAsset.mediaType == .video {
                         self.getVideoAsset(forAsset: phAsset) { video in
@@ -280,9 +288,7 @@ class CroppingImagePickerImpl: NSObject,
                                 
                                 DispatchQueue.main.async {
                                     lock.lock()
-                                    
-                                    if let imgT = UIImage(data: imageData) {
-                                        
+                                    if UIImage(data: imageData) != nil {
                                         let attachmentResponse = self.processSingleImagePhPick(
                                             imageData,
                                             indicatorView: indicatorView,
@@ -393,6 +399,51 @@ class CroppingImagePickerImpl: NSObject,
             imagePickerController.delegate = self
             imagePickerController.modalPresentationStyle = .fullScreen
             self.getRootVC().present(imagePickerController, animated: true)
+        }
+    }
+    
+    @available(iOS 14.0, *)
+    @IBAction func openLimitedAccessConfirmDialog(rejecter: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            let actionSheet = UIAlertController(title: "",
+                                                message: "Select more photos or go to Settings to allow access to all photos.",
+                                                preferredStyle: .actionSheet)
+            
+            let vc = self.getRootVC()
+            
+            let selectPhotosAction = UIAlertAction(title: "Select more photos",
+                                                   style: .default) { [unowned self] (_) in
+                // Show limited library picker
+                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc)
+            }
+            actionSheet.addAction(selectPhotosAction)
+            
+            let allowFullAccessAction = UIAlertAction(title: "Allow access to all photos",
+                                                      style: .default) { [unowned self] (_) in
+                // Open app privacy settings
+                guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                    //reject("E_URL_INVALID", "Invalid URL for app settings", nil)
+                    return
+                }
+                
+                if UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url, options: [:]) { success in
+                        if success {
+                            //resolve(nil)
+                        } else {
+                            //reject("E_CANNOT_OPEN", "Unable to open app settings", nil)
+                        }
+                    }
+                } else {
+                    ///reject("E_CANNOT_OPEN_URL", "Cannot handle URL for app settings", nil)
+                }
+            }
+            actionSheet.addAction(allowFullAccessAction)
+            
+            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
+            actionSheet.addAction(cancelAction)
+            
+            vc.present(actionSheet, animated: true, completion: nil)
         }
     }
     

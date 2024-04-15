@@ -31,4 +31,9 @@ class CroppingImagePicker: NSObject, RCTBridgeModule {
     func openCropper(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         CroppingImagePickerImpl.shared.openCropper(options, bridge: bridge, resolver: resolver, rejecter: rejecter)
     }
+    
+    @objc(openLimitedAccessConfirmDialog:withResolver:withRejecter:)
+    func openLimitedAccessConfirmDialog(_ options: [String: Any], resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+        CroppingImagePickerImpl.shared.openLimitedAccessConfirmDialog(rejecter: rejecter)
+    }
 }
