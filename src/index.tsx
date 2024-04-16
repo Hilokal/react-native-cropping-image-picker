@@ -41,10 +41,14 @@ export function openPicker<O extends Options>(
   return CroppingImagePicker.openPicker(options);
 }
 
-export function openLimitedAccessConfirmDialog<O extends Options>(
-  options: O
+export function openLimitedAccessConfirmDialog(
+  options: LimitedAccessConfirmDialogStrings
 ): Promise<undefined> {
   return CroppingImagePicker.openLimitedAccessConfirmDialog(options);
+}
+
+export function queryAccessStatus(): Promise<string | undefined> {
+  return CroppingImagePicker.queryAccessStatus();
 }
 
 /**
@@ -544,3 +548,11 @@ type MediaType<O> = O extends { mediaType: 'photo' }
   : O extends { mediaType: 'video' }
   ? Video
   : ImageOrVideo;
+
+export interface LimitedAccessConfirmDialogStrings {
+  dialogTitle?: string;
+  dialogMessage?: string;
+  selectMoreButtonLabel?: string;
+  fullAccessButtonLabel?: string;
+  cancelBtn?: string;
+}

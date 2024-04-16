@@ -37,4 +37,8 @@ struct CIPError {
 
     static let cannotProcessVideoKey = "E_CANNOT_PROCESS_VIDEO"
     static let cannotProcessVideoMsg = "Cannot process video data"
+    
+    static let cannotOpenSettingsKey = "E_CANNOT_OPEN_SETTINGS"
+    static let cannotOpenSettingsMsg = "Unable to open app settings"
+    static let cannotOpenSettingsWrongUrlMsg = "Cannot handle URL for app settings"
 }

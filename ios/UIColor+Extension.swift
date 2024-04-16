@@ -11,7 +11,7 @@ extension UIColor {
     static func fromHex(hexString: String) -> UIColor {
         var rgbValue: UInt64 = 0
         let scanner = Scanner(string: hexString)
-        scanner.scanLocation = 1  // bypass '#' character
+        scanner.currentIndex = scanner.string.index(scanner.currentIndex, offsetBy: 1)  // bypass '#' character
         scanner.scanHexInt64(&rgbValue)
         return UIColor(
             red: CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0,
