@@ -392,6 +392,15 @@ type ImageOptions = CommonOptions & {
    * @default Android: 1, iOS: 0.8
    */
   compressImageQuality?: number;
+
+  /**
+   * Whether the returned metadata of an image should have the width and height switched,
+   * according to the orientation set in the image's exif data.
+   *
+   * @platform Android only
+   * @default false
+   */
+  switchDimensionsOnOrientation?: boolean;
 };
 
 type CropperOptions = ImageOptions & {

@@ -54,6 +54,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   private var disableCropperColorSetters = false
   private var useFrontCamera = false
   private var forceJpg = false
+  private var switchDimensionsOnOrientation = false
   private var options: ReadableMap? = null
   private var cropperActiveWidgetColor: String? = null
   private var cropperStatusBarColor: String? = null
@@ -101,6 +102,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     disableCropperColorSetters = getBooleanOption(options, "disableCropperColorSetters")
     useFrontCamera = getBooleanOption(options, "useFrontCamera")
     forceJpg = getBooleanOption(options, "forceJpg")
+    switchDimensionsOnOrientation = getBooleanOption(options, "switchDimensionsOnOrientation")
     this.options = options
   }
 
@@ -476,7 +478,6 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
     }.start()
   }
 
-
   private fun resolveRealPath(activity: Activity, uri: Uri, isCamera: Boolean): String? {
     val path = when {
       isCamera -> Uri.parse(mCurrentMediaPath)?.path
@@ -581,6 +582,13 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
           if (includeBase64) {
             putString("data", getBase64StringFromFile(compressedImagePath))
           }
+          if (switchDimensionsOnOrientation) {
+            val shouldModify = ExifExtractor.extractOrientation(path)
+            if (shouldModify) {
+              putInt("width", compressedImageOptions.outHeight)
+              putInt("height", compressedImageOptions.outWidth)
+            }
+          }
         }
       } else {
         val originalFile = File(path)
@@ -601,7 +609,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
 
       if (includeExif) {
         try {
-          val exif = ExifExtractor.extract(path)
+          val exif = ExifExtractor.extract(path = path, mime = mime)
           responseMap.putMap("exif", exif)
         } catch (ex: Exception) {
           ex.printStackTrace()

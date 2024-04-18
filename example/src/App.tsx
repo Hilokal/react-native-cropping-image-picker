@@ -166,8 +166,8 @@ export default function App() {
       cropping: cropit,
       cropperCircleOverlay: circular,
       sortOrder: 'none',
-      compressImageMaxWidth: 1000,
-      compressImageMaxHeight: 1000,
+      compressImageMaxWidth: 2048,
+      compressImageMaxHeight: 2048,
       compressImageQuality: 1,
       compressVideoPreset: 'MediumQuality',
       includeExif: true,
@@ -175,6 +175,7 @@ export default function App() {
       cropperToolbarColor: 'white',
       cropperActiveWidgetColor: 'white',
       cropperToolbarWidgetColor: '#3498DB',
+      switchDimensionsOnOrientation: true,
     })
       .then((image) => {
         console.log('received image', image);
@@ -268,6 +269,7 @@ export default function App() {
       cropperActiveWidgetColor: 'white',
       cropperToolbarWidgetColor: '#3498DB',
       mediaType: 'photo',
+      switchDimensionsOnOrientation: true,
     })
       .then((image) => {
         console.log('received image', image);
