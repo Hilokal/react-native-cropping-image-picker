@@ -45,8 +45,8 @@ export default function App() {
   ) {
     openCamera({
       cropping: cropping,
-      width: 500,
-      height: 500,
+      width: 1024,
+      height: 1024,
       includeExif: true,
       mediaType,
     })
@@ -67,8 +67,8 @@ export default function App() {
 
   function pickSingleBase64(cropit: boolean) {
     openPicker({
-      width: 300,
-      height: 300,
+      width: 1024,
+      height: 1024,
       cropping: cropit,
       includeBase64: true,
       includeExif: true,
@@ -135,8 +135,8 @@ export default function App() {
 
     openCropper({
       path: state?.image.uri,
-      width: 200,
-      height: 200,
+      width: 512,
+      height: 512,
       mediaType: 'photo',
       forceJpg: true,
       cropperChooseColor: '#EE00DD',
@@ -161,8 +161,8 @@ export default function App() {
 
   function pickSingle(cropit: boolean, circular: boolean = false) {
     openPicker({
-      width: 500,
-      height: 500,
+      width: 1024,
+      height: 1024,
       cropping: cropit,
       cropperCircleOverlay: circular,
       sortOrder: 'none',
@@ -179,8 +179,31 @@ export default function App() {
     })
       .then((image) => {
         console.log('received image', image);
-
         if (cropit) {
+          openCropper({
+            path: image.path,
+            width: 512,
+            height: 512,
+            mediaType: 'photo',
+            forceJpg: true,
+            cropperCircleOverlay: circular,
+          })
+            .then((i) => {
+              console.log('received cropped image', i);
+              setState({
+                image: {
+                  uri: i.path,
+                  width: i.width,
+                  height: i.height,
+                  mime: i.mime,
+                },
+                images: null,
+              });
+            })
+            .catch((e) => {
+              console.log(e);
+              Alert.alert(e.message ? e.message : e);
+            });
         } else {
           setState({
             image: {
@@ -192,30 +215,6 @@ export default function App() {
             images: null,
           });
         }
-        openCropper({
-          path: image.path,
-          width: 200,
-          height: 200,
-          mediaType: 'photo',
-          forceJpg: true,
-          cropperCircleOverlay: circular,
-        })
-          .then((i) => {
-            console.log('received cropped image', i);
-            setState({
-              image: {
-                uri: i.path,
-                width: i.width,
-                height: i.height,
-                mime: i.mime,
-              },
-              images: null,
-            });
-          })
-          .catch((e) => {
-            console.log(e);
-            Alert.alert(e.message ? e.message : e);
-          });
       })
       .catch((e) => {
         console.log(e);
@@ -275,8 +274,8 @@ export default function App() {
         console.log('received image', image);
         openCropper({
           path: image.path,
-          width: 200,
-          height: 200,
+          width: 512,
+          height: 512,
           mediaType: 'photo',
           forceJpg: true,
         })
