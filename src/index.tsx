@@ -41,6 +41,16 @@ export function openPicker<O extends Options>(
   return CroppingImagePicker.openPicker(options);
 }
 
+export function openLimitedAccessConfirmDialog(
+  options: LimitedAccessConfirmDialogStrings
+): Promise<undefined> {
+  return CroppingImagePicker.openLimitedAccessConfirmDialog(options);
+}
+
+export function queryAccessStatus(): Promise<string | undefined> {
+  return CroppingImagePicker.queryAccessStatus();
+}
+
 /**
  * AVAssetExportPreset presets.
  *
@@ -382,6 +392,15 @@ type ImageOptions = CommonOptions & {
    * @default Android: 1, iOS: 0.8
    */
   compressImageQuality?: number;
+
+  /**
+   * Whether the returned metadata of an image should have the width and height switched,
+   * according to the orientation set in the image's exif data.
+   *
+   * @platform Android only
+   * @default false
+   */
+  switchDimensionsOnOrientation?: boolean;
 };
 
 type CropperOptions = ImageOptions & {
@@ -538,3 +557,11 @@ type MediaType<O> = O extends { mediaType: 'photo' }
   : O extends { mediaType: 'video' }
   ? Video
   : ImageOrVideo;
+
+export interface LimitedAccessConfirmDialogStrings {
+  dialogTitle?: string;
+  dialogMessage?: string;
+  selectMoreButtonLabel?: string;
+  fullAccessButtonLabel?: string;
+  cancelBtn?: string;
+}

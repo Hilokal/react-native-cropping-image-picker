@@ -1,6 +1,6 @@
 {
   "name": "react-native-cropping-image-picker-example",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "react": "18.2.0",
-    "react-native": "0.72.7",
+    "react-native": "~0.72.13",
     "react-native-video": "5.2.1"
   },
   "devDependencies": {
@@ -25,6 +25,6 @@
     "pod-install": "^0.1.39"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   }
 }

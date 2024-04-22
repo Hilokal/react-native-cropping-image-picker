@@ -16,6 +16,9 @@ struct CIPError {
 
     static let noLibraryPermissionKey = "E_NO_LIBRARY_PERMISSION"
     static let noLibraryPermissionMsg = "User did not grant library permission."
+    
+    static let notGrantedAccessToAssetsKey = "E_NOT_GRANTED_ACCESS"
+    static let notGrantedAccessToAssetsMsg = "User has selected assets that have not been granted access."
 
     static let pickerCancelKey = "E_PICKER_CANCELLED"
     static let pickerCancelMsg = "User cancelled image selection"
@@ -34,4 +37,8 @@ struct CIPError {
 
     static let cannotProcessVideoKey = "E_CANNOT_PROCESS_VIDEO"
     static let cannotProcessVideoMsg = "Cannot process video data"
+    
+    static let cannotOpenSettingsKey = "E_CANNOT_OPEN_SETTINGS"
+    static let cannotOpenSettingsMsg = "Unable to open app settings"
+    static let cannotOpenSettingsWrongUrlMsg = "Cannot handle URL for app settings"
 }

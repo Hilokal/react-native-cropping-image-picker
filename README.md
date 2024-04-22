@@ -23,6 +23,8 @@ import {
   openCamera,
   openCropper,
   openPicker,
+  openLimitedAccessConfirmDialog,
+  queryAccessStatus,
 } from 'react-native-cropping-image-picker';
 
 // ...
@@ -32,10 +34,38 @@ await cleanSingle();
 await openCamera();
 await openCropper();
 await openPicker();
+await openLimitedAccessConfirmDialog();
+await queryAccessStatus();
 ```
 
 - See [`react-native-image-crop-picker`](https://github.com/ivpusic/react-native-image-crop-picker/blob/master/README.md)'s documentation for detailed instructions.
 - See the example app for more detailed usage examples.
+
+### ⚠️ iOS Only ⚠️
+
+- `openLimitedAccessConfirmDialog`
+
+  Shows the user a dialog with two options:
+
+1. Add images to the granted access scope
+
+   (Will show the image picker with the already selected images marked)
+
+2. Grant full access
+
+   (Will open the app settings, the user will have to navigate to the image permissions submenu)
+
+- `queryAccessStatus`
+
+  Will return the current access status, possible values are:
+
+  - limited (Limited selection of images selected)
+  - denied (no access granted at all)
+  - unknown (no access requested yet)
+  - forbidden (no permission can requested, example would be "Parenting Mode")
+  - full (full access granted)
+
+  See: https://developer.apple.com/documentation/photokit/phauthorizationstatus
 
 ## Contributing
 

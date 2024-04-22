@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
   type ImageSourcePropType,
+  Platform,
 } from 'react-native';
 import Video from 'react-native-video';
 import {
@@ -18,6 +19,8 @@ import {
   openCamera,
   openCropper,
   openPicker,
+  openLimitedAccessConfirmDialog,
+  queryAccessStatus,
 } from 'react-native-cropping-image-picker';
 
 type Asset = {
@@ -42,8 +45,8 @@ export default function App() {
   ) {
     openCamera({
       cropping: cropping,
-      width: 500,
-      height: 500,
+      width: 1024,
+      height: 1024,
       includeExif: true,
       mediaType,
     })
@@ -64,8 +67,8 @@ export default function App() {
 
   function pickSingleBase64(cropit: boolean) {
     openPicker({
-      width: 300,
-      height: 300,
+      width: 1024,
+      height: 1024,
       cropping: cropit,
       includeBase64: true,
       includeExif: true,
@@ -132,10 +135,11 @@ export default function App() {
 
     openCropper({
       path: state?.image.uri,
-      width: 200,
-      height: 200,
+      width: 512,
+      height: 512,
       mediaType: 'photo',
       forceJpg: true,
+      cropperChooseColor: '#EE00DD',
     })
       .then((image) => {
         console.log('received cropped image', image);
@@ -157,13 +161,13 @@ export default function App() {
 
   function pickSingle(cropit: boolean, circular: boolean = false) {
     openPicker({
-      width: 500,
-      height: 500,
+      width: 1024,
+      height: 1024,
       cropping: cropit,
       cropperCircleOverlay: circular,
       sortOrder: 'none',
-      compressImageMaxWidth: 1000,
-      compressImageMaxHeight: 1000,
+      compressImageMaxWidth: 2048,
+      compressImageMaxHeight: 2048,
       compressImageQuality: 1,
       compressVideoPreset: 'MediumQuality',
       includeExif: true,
@@ -171,18 +175,46 @@ export default function App() {
       cropperToolbarColor: 'white',
       cropperActiveWidgetColor: 'white',
       cropperToolbarWidgetColor: '#3498DB',
+      switchDimensionsOnOrientation: true,
     })
       .then((image) => {
         console.log('received image', image);
-        setState({
-          image: {
-            uri: image.path,
-            width: image.width,
-            height: image.height,
-            mime: image.mime,
-          },
-          images: null,
-        });
+        if (cropit) {
+          openCropper({
+            path: image.path,
+            width: 512,
+            height: 512,
+            mediaType: 'photo',
+            forceJpg: true,
+            cropperCircleOverlay: circular,
+          })
+            .then((i) => {
+              console.log('received cropped image', i);
+              setState({
+                image: {
+                  uri: i.path,
+                  width: i.width,
+                  height: i.height,
+                  mime: i.mime,
+                },
+                images: null,
+              });
+            })
+            .catch((e) => {
+              console.log(e);
+              Alert.alert(e.message ? e.message : e);
+            });
+        } else {
+          setState({
+            image: {
+              uri: image.path,
+              width: image.width,
+              height: image.height,
+              mime: image.mime,
+            },
+            images: null,
+          });
+        }
       })
       .catch((e) => {
         console.log(e);
@@ -191,28 +223,38 @@ export default function App() {
   }
 
   function pickMultiple() {
-    openPicker({
-      multiple: true,
-      waitAnimationEnd: false,
-      sortOrder: 'desc',
-      includeExif: true,
-      forceJpg: true,
-    })
-      .then((images) => {
-        setState({
-          image: null,
-          images: images.map((i) => {
-            console.log('received image', i);
-            return {
-              uri: i.path,
-              width: i.width,
-              height: i.height,
-              mime: i.mime,
-            };
-          }),
-        });
+    try {
+      openPicker({
+        multiple: true,
+        waitAnimationEnd: false,
+        sortOrder: 'desc',
+        includeExif: true,
+        forceJpg: true,
       })
-      .catch((e) => console.error(e));
+        .then((images) => {
+          setState({
+            image: null,
+            images: images.map((i) => {
+              console.log('received image', i);
+              return {
+                uri: i.path,
+                width: i.width,
+                height: i.height,
+                mime: i.mime,
+              };
+            }),
+          });
+        })
+        .catch((e) => console.error(e));
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  function showLimitedAccessConfirmDialog() {
+    openLimitedAccessConfirmDialog({ dialogTitle: 'Custom Title!' }).catch(
+      (e) => console.error(e)
+    );
   }
 
   function pickSingleWithGifSupport(circular: boolean = false) {
@@ -226,13 +268,14 @@ export default function App() {
       cropperActiveWidgetColor: 'white',
       cropperToolbarWidgetColor: '#3498DB',
       mediaType: 'photo',
+      switchDimensionsOnOrientation: true,
     })
       .then((image) => {
         console.log('received image', image);
         openCropper({
           path: image.path,
-          width: 200,
-          height: 200,
+          width: 512,
+          height: 512,
           mediaType: 'photo',
           forceJpg: true,
         })
@@ -257,6 +300,11 @@ export default function App() {
         console.log(e);
         Alert.alert(e.message ? e.message : e);
       });
+  }
+
+  async function onQueryAccessStatus() {
+    const result = await queryAccessStatus();
+    Alert.alert('Image Access Level', `${result}`);
   }
 
   function renderVideo(video: Asset) {
@@ -359,6 +407,21 @@ export default function App() {
         <TouchableOpacity onPress={pickMultiple} style={styles.button}>
           <Text style={styles.text}>Select Multiple</Text>
         </TouchableOpacity>
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity
+            onPress={showLimitedAccessConfirmDialog}
+            style={styles.button}
+          >
+            <Text style={styles.text}>
+              Show Limited Access Confirmation Dialog
+            </Text>
+          </TouchableOpacity>
+        )}
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity onPress={onQueryAccessStatus} style={styles.button}>
+            <Text style={styles.text}>Query Access Status</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={cleanupImages} style={styles.button}>
           <Text style={styles.text}>Cleanup All Images</Text>
         </TouchableOpacity>

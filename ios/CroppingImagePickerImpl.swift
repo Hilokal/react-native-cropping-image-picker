@@ -246,6 +246,14 @@ class CroppingImagePickerImpl: NSObject,
                 fetchOptions.fetchLimit = identifiers.count
                 let phAssets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: fetchOptions)
                 
+                if phAssets.count == 0 {
+                    indicatorView.stopAnimating()
+                    overlayView.removeFromSuperview()
+                    picker.dismiss(animated: true) {
+                        self.reject?(CIPError.notGrantedAccessToAssetsKey, CIPError.notGrantedAccessToAssetsMsg, nil)
+                    }
+                }
+                
                 phAssets.enumerateObjects { (phAsset, _, _) in
                     if phAsset.mediaType == .video {
                         self.getVideoAsset(forAsset: phAsset) { video in
@@ -280,9 +288,7 @@ class CroppingImagePickerImpl: NSObject,
                                 
                                 DispatchQueue.main.async {
                                     lock.lock()
-                                    
-                                    if let imgT = UIImage(data: imageData) {
-                                        
+                                    if UIImage(data: imageData) != nil {
                                         let attachmentResponse = self.processSingleImagePhPick(
                                             imageData,
                                             indicatorView: indicatorView,
@@ -396,6 +402,67 @@ class CroppingImagePickerImpl: NSObject,
         }
     }
     
+    @available(iOS 14.0, *)
+    @IBAction func openLimitedAccessConfirmDialog(_ options: [String: Any], rejecter: @escaping RCTPromiseRejectBlock) {
+        
+        let title = options["dialogTitle"] as? String ?? ""
+        let msg = options["dialogMessage"] as? String ?? "Select more photos or go to Settings to allow access to all photos."
+        let morePhotosBtn = options["selectMoreButtonLabel"] as? String ?? "Select more photos"
+        let fullAccessBtn = options["fullAccessButtonLabel"] as? String ?? "Allow access to all photos"
+        let cancelBtn = options["cancelBtn"] as? String ?? "Cancel"
+        
+        DispatchQueue.main.async {
+            let actionSheet = UIAlertController(title: title,
+                                                message: msg,
+                                                preferredStyle: .actionSheet)
+            
+            let vc = self.getRootVC()
+            
+            let selectPhotosAction = UIAlertAction(title: morePhotosBtn,
+                                                   style: .default) { [weak self] (_) in
+                guard self != nil else { return }
+                // Show limited library picker
+                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc)
+            }
+            actionSheet.addAction(selectPhotosAction)
+            
+            let allowFullAccessAction = UIAlertAction(title: fullAccessBtn,
+                                                      style: .default) { [weak self] (_) in
+                // Open app privacy settings
+                self?.openSettings(rejecter: rejecter)
+            }
+            actionSheet.addAction(allowFullAccessAction)
+            
+            let cancelAction = UIAlertAction(title: cancelBtn, style: .cancel, handler: nil)
+            actionSheet.addAction(cancelAction)
+            
+            if let popoverController = actionSheet.popoverPresentationController {
+                popoverController.sourceView = vc.view
+                popoverController.sourceRect = CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY, width: 0, height: 0)
+                popoverController.permittedArrowDirections = []
+            }
+            
+            vc.present(actionSheet, animated: true, completion: nil)
+        }
+    }
+    
+    private func openSettings(rejecter: @escaping RCTPromiseRejectBlock) {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+            rejecter(CIPError.cannotOpenSettingsKey, CIPError.cannotOpenSettingsWrongUrlMsg, nil)
+            return
+        }
+        
+        if UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url, options: [:]) { success in
+                if !success {
+                    rejecter(CIPError.cannotOpenSettingsKey, CIPError.cannotOpenSettingsMsg, nil)
+                }
+            }
+        } else {
+            rejecter(CIPError.cannotOpenSettingsKey, CIPError.cannotOpenSettingsMsg, nil)
+        }
+    }
+    
     func openCropper(_ options: [String: Any], bridge: RCTBridge, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
         setConfiguration(options: options, resolver: resolver, rejecter: rejecter)
         currentSelectionMode = .cropping
@@ -409,6 +476,19 @@ class CroppingImagePickerImpl: NSObject,
                 }
                 self.cropImage(image.fixOrientation())
             }
+        }
+    }
+    
+    func queryAccessStatus(resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+        let accessLevel: PHAccessLevel = .readWrite
+        let authorizationStatus = PHPhotoLibrary.authorizationStatus(for: accessLevel)
+        switch authorizationStatus {
+        case .limited: resolver("limited")
+        case .denied: resolver("denied")
+        case .notDetermined: resolver("unknown")
+        case .restricted: resolver("forbidden")
+        case .authorized: resolver("full")
+        @unknown default: resolver(nil)
         }
     }
     
