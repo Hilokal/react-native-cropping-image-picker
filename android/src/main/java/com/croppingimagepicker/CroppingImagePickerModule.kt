@@ -483,15 +483,17 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
       isCamera -> Uri.parse(mCurrentMediaPath)?.path
       else -> RealPathUtil.getRealPathFromURI(activity, uri)
     }
-
     return when {
       Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> path
+      Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> {
+        val copiedFile = createExternalStoragePrivateFile(activity, uri)
+        RealPathUtil.getRealPathFromURI(activity, Uri.fromFile(copiedFile))
+      }
       else -> {
         val externalCacheDirPath = Uri.fromFile(activity.externalCacheDir)?.path
         val externalFilesDirPath = Uri.fromFile(activity.getExternalFilesDir(null))?.path
         val cacheDirPath = Uri.fromFile(activity.cacheDir)?.path
         val filesDirPath = Uri.fromFile(activity.filesDir)?.path
-
         when {
           listOf(externalCacheDirPath, externalFilesDirPath, cacheDirPath, filesDirPath).any {
             path?.let { subPath ->
@@ -544,6 +546,7 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   }
 
   private fun validateImage(path: String): BitmapFactory.Options {
+    println("RESOLVE_REAL_PATH! $path")
     return BitmapFactory.Options().apply {
       inJustDecodeBounds = true
       inPreferredConfig = Bitmap.Config.ARGB_8888

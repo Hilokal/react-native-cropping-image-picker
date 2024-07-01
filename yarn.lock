@@ -12894,7 +12894,7 @@ __metadata:
     metro-react-native-babel-preset: 0.77.0
     pod-install: ^0.1.39
     react: 18.2.0
-    react-native: ~0.72.13
+    react-native: ~0.72.14
     react-native-video: 5.2.1
   languageName: unknown
   linkType: soft
@@ -12919,7 +12919,7 @@ __metadata:
     pod-install: ^0.1.39
     prettier: ^2.0.5
     react: 18.2.0
-    react-native: ~0.71.18
+    react-native: ~0.71.19
     react-native-builder-bob: ^0.23.1
     release-it: ^16.2.1
     turbo: ^1.10.16
@@ -12949,9 +12949,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native@npm:~0.71.18":
-  version: 0.71.18
-  resolution: "react-native@npm:0.71.18"
+"react-native@npm:~0.71.19":
+  version: 0.71.19
+  resolution: "react-native@npm:0.71.19"
   dependencies:
     "@jest/create-cache-key-function": ^29.2.1
     "@react-native-community/cli": 10.2.7
@@ -12992,13 +12992,13 @@ __metadata:
     react: 18.2.0
   bin:
     react-native: cli.js
-  checksum: c6d50f253d687fd62cce36d3165873a2046e1a7bab7eb75970466f71cb9225b2cc05f9ea5c2069514d05ef752d13deeb48bb8673e94e0a8ad99ceb472a9b4eb8
+  checksum: 72af6b37214f322a71a1cf9ff1016d07d51669aa1032d48da43d87b93314b3432d424dd05312458d65aa6838b22edd5dd18b16870c26460747c00c7c49e324a3
   languageName: node
   linkType: hard
 
-"react-native@npm:~0.72.13":
-  version: 0.72.13
-  resolution: "react-native@npm:0.72.13"
+"react-native@npm:~0.72.14":
+  version: 0.72.14
+  resolution: "react-native@npm:0.72.14"
   dependencies:
     "@jest/create-cache-key-function": ^29.2.1
     "@react-native-community/cli": ^11.4.1
@@ -13041,7 +13041,7 @@ __metadata:
     react: 18.2.0
   bin:
     react-native: cli.js
-  checksum: e5f45a59f9e8640ab21fecfbbe6a82f7139d3b67aeda935068e61f41fe19d49eabdac416eea72c1875c934ea4ec7283d16eb5ae5ada684942639db795f100993
+  checksum: 8f86a955ce4f19612695fb8219d255cd2739de4fafcb0e146186c04527909910e5a0a54119be195aa57a91c83e189f7cde9924180d16297e347bd8055562e6be
   languageName: node
   linkType: hard
 
@@ -13704,7 +13704,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:7.5.4, semver@npm:^7.3.4, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.2, semver@npm:^7.5.3":
+"semver@npm:7.5.4, semver@npm:^7.3.4, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.3":
   version: 7.5.4
   resolution: "semver@npm:7.5.4"
   dependencies:
@@ -13721,6 +13721,17 @@ __metadata:
   bin:
     semver: bin/semver.js
   checksum: ae47d06de28836adb9d3e25f22a92943477371292d9b665fb023fae278d345d508ca1958232af086d85e0155aee22e313e100971898bbb8d5d89b8b1d4054ca2
+  languageName: node
+  linkType: hard
+
+"semver@npm:^7.5.2":
+  version: 7.6.0
+  resolution: "semver@npm:7.6.0"
+  dependencies:
+    lru-cache: ^6.0.0
+  bin:
+    semver: bin/semver.js
+  checksum: 7427f05b70786c696640edc29fdd4bc33b2acf3bbe1740b955029044f80575fc664e1a512e4113c3af21e767154a94b4aa214bf6cd6e42a1f6dba5914e0b208c
   languageName: node
   linkType: hard
 
@@ -15463,9 +15474,11 @@ __metadata:
   linkType: hard
 
 "yaml@npm:^2.2.1":
-  version: 2.3.3
-  resolution: "yaml@npm:2.3.3"
-  checksum: cdfd132e7e0259f948929efe8835923df05c013c273c02bb7a2de9b46ac3af53c2778a35b32c7c0f877cc355dc9340ed564018c0242bfbb1278c2a3e53a0e99e
+  version: 2.4.2
+  resolution: "yaml@npm:2.4.2"
+  bin:
+    yaml: bin.mjs
+  checksum: 90dda4485de04367251face9abb5c36927c94e44078f4e958e6468a07e74e7e92f89be20fc49860b6268c51ee5a5fc79ef89197d3f874bf24ef8921cc4ba9013
   languageName: node
   linkType: hard
 
