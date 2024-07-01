@@ -546,7 +546,6 @@ class CroppingImagePickerModule(private val reactContext: ReactApplicationContex
   }
 
   private fun validateImage(path: String): BitmapFactory.Options {
-    println("RESOLVE_REAL_PATH! $path")
     return BitmapFactory.Options().apply {
       inJustDecodeBounds = true
       inPreferredConfig = Bitmap.Config.ARGB_8888
