@@ -19,7 +19,6 @@ class Compression {
         self.exportPresets = dic
     }
     
-//    func compressImageDimensions(image: UIImage, maxWidth: CGFloat, maxHeight: CGFloat, into result: ImageResult) -> ImageResult {
     func compressImageDimensions(image: UIImage, maxWidth: CGFloat, maxHeight: CGFloat, into result: ImageResult) {
         let oldWidth = image.size.width
         let oldHeight = image.size.height
@@ -37,15 +36,14 @@ class Compression {
         
         let newSize = CGSize(width: newWidth, height: newHeight)
         
-        UIGraphicsBeginImageContext(newSize)
-        image.draw(in: CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height))
-        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resizedImage = renderer.image { (context) in
+            image.draw(in: CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height))
+        }
         
         result.width = NSNumber(value: newWidth)
         result.height = NSNumber(value: newHeight)
         result.image = resizedImage
-//        return result
     }
     
     func compressImage(image: UIImage, with options: [String: Any]) -> ImageResult {

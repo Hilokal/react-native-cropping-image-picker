@@ -376,7 +376,7 @@ PODS:
   - React-jsinspector (0.72.14)
   - React-logger (0.72.14):
     - glog
-  - react-native-cropping-image-picker (0.3.0):
+  - react-native-cropping-image-picker (0.4.2):
     - CropViewController
     - RCT-Folly (= 2021.07.22.00)
     - React-Core
@@ -704,7 +704,7 @@ SPEC CHECKSUMS:
   React-jsiexecutor: e9a70be9304ef2e66eeebac35710f958b076dc14
   React-jsinspector: 275d9f80210f15f0af9a4b7fd5683fab9738e28e
   React-logger: 8da4802de77a0eb62512396ad6bb1769904c2f0e
-  react-native-cropping-image-picker: 57b811181fe80651f79aea152df1dca35c5761dd
+  react-native-cropping-image-picker: e8d1e8a79b636017b8dea4d6c5250a5f382d8a09
   react-native-video: c26780b224543c62d5e1b2a7244a5cd1b50e8253
   React-NativeModulesApple: 3107f777453f953906d9ba9dc5f8cbd91a6ef913
   React-perflogger: daabc494c6328efc1784a4b49b8b74fca305d11c
